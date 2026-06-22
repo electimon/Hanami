@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include <regex.h>
+#include <wregex.h>
 
 OF_APPLICATION_DELEGATE(Hanami)
 
@@ -119,10 +119,10 @@ static const char *transformationRegex = "(\\$\\w+(?:::\\w+)*(?:(?:->)?\\{[-\\w]
 
 - (OFString *)transformTemplate:(OFString *)template varMap:(OFDictionary *)varMap {
 	static bool initOk = false;
-	static regex_t *compiledTransformationRegex;
+	static wregex_t *compiledTransformationRegex;
 	if (!initOk) {
 		int e = 0;
-		compiledTransformationRegex = regcomp(compiledTransformationRegex, transformationRegex, NULL);
+		compiledTransformationRegex = wrx_comp(transformationRegex, &e, NULL);
 		if (!compiledTransformationRegex) {
 			OFLog(@"Hanami: Failed to compile the transformation regex: %d, Bailing!", e);
 			[OFApplication terminateWithStatus:1];
