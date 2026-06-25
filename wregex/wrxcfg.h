@@ -76,7 +76,7 @@ typedef enum {
  * '\' for now, but I can think of at least one application
  * where I'd rather use something else, like a '%' or a '/'
  */
-#define ESC		'\\'
+#define ESC		'%'
 
 /*
  *	Macros for manipulating bit-vectors (char[16])
