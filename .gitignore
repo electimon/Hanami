@@ -1,0 +1,6 @@
+dist
+.ccls-cache
+plugins-src/RennPlugin
+*.o
+compile_commands.json
+.cache

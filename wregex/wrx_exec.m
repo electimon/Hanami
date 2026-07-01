@@ -168,6 +168,8 @@ int wrx_exec(const wregex_t *nfa, const char *str, wregmatch_t subm[], int nsm) 
 	if(!stk) return WRX_MEMORY;
 	s = str;
 
+	const char *s_end = str + strlen(str);
+
 	if(nsm < nfa->n_subm) {
 		spare_sm = calloc(nfa->n_subm - nsm, sizeof *spare_sm);
 		if(!spare_sm) {
@@ -491,8 +493,8 @@ int wrx_exec(const wregex_t *nfa, const char *str, wregmatch_t subm[], int nsm) 
 				/* We have an '^' anchor, push every character that follows
 				a newline to the stack */
 				if(bol == 1 && ctr == 0) {
-					while(s[0]) {
-						if((s[0] == '\r' || s[0] == '\n') && s[1]) {
+					while(s < s_end && s[0]) {
+						if((s[0] == '\r' || s[0] == '\n') && s + 1 < s_end && s[1]) {
 #ifdef DEBUG_OUTPUT
 							printf("pushing '%c' start\n", s[1]);
 #endif
@@ -505,7 +507,7 @@ int wrx_exec(const wregex_t *nfa, const char *str, wregmatch_t subm[], int nsm) 
 
 					bol++;
 				}
-			} else if(ctr == 0 && s[1]) {
+			} else if(ctr == 0 && s + 1 < s_end && s[1]) {
 #ifdef DEBUG_OUTPUT
 				printf("pushing '%c' start\n", s[1]);
 #endif
