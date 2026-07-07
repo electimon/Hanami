@@ -167,6 +167,7 @@ static OFMutableDictionary *staticVarMap;
 	_server.delegate = self;
 	[_server start];
 	OFLog(@"Hanami: Started HTTP server at: %@:%d, version: %@", _host, _port, VERSION);
+	[[OFRunLoop mainRunLoop] run];
 }
 
 #pragma mark - Delegate Methods
