@@ -22,7 +22,7 @@ Class HanamiPluginClass(void) {
 
 - (instancetype)init {
     self = [super init];
-    self->request = [[OFHTTPRequest alloc] initWithIRI:[OFIRI IRIWithString:@"https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=electimon&api_key=381b012daf658aaaa11d703b469c281a"]];
+    self->request = [[OFHTTPRequest alloc] initWithIRI:[OFIRI IRIWithString:@"https://google.com"]];
     self->client = [OFHTTPClient client];
     self->client.delegate = self;
     self->timer = [[OFTimer alloc] initWithFireDate:[OFDate dateWithTimeIntervalSinceNow:5.0] interval:120.0 target:self selector:@selector(fillCache) object:nil repeats:YES];
@@ -33,16 +33,23 @@ Class HanamiPluginClass(void) {
 
 - (void)fillCache {
     OFLog(@"YOU TOO");
-    [client asyncPerformRequest:request redirects:YES];
+    OFLog(@"test: %@", [client performRequest:request]);
 }
 
 - (OFString *)getLastPlayed {
-
     return @"";
 }
 
 - (void)client:(nonnull OFHTTPClient *)client didPerformRequest:(nonnull OFHTTPRequest *)request response:(nullable OFHTTPResponse *)response exception:(nullable id)exception {
-    OFLog(@"HELLO %d, %@", response.statusCode, [response readDataUntilEndOfStream]);
+    OFLog(@"its here");
+    OFLog(@"HELLO %d", response.statusCode);
+}
+
+- (void) client: 		(OFHTTPClient *) 	client
+didReceiveHeaders: 		(OFDictionary *) 	headers
+statusCode: 		(short) 	statusCode
+request: 		(OFHTTPRequest *) 	request {
+    OFLog(@"%@ %d", headers, statusCode);
 }
 
 @end
