@@ -1,8 +1,15 @@
 #import "Hanami.h"
+#include <ObjFW/OFException.h>
+#include <asm-generic/errno-base.h>
+#include <ObjFW/OFCreateDirectoryFailedException.h>
+#include <ObjFW/OFFileManager.h>
+#include <ObjFW/OFObject.h>
+#include <ObjFW/OFArray.h>
 #include "HanamiPluginResult.h"
 #import "HanamiUtils.h"
 #import "HanamiEntry.h"
 #import "HanamiPlugin.h"
+#import "HanamiConfig.h"
 
 #include <stdio.h>
 
@@ -114,51 +121,48 @@ static OFMutableDictionary *staticVarMap;
 		}
 	}
 
-	if (configPath == nil)
-		configPath = @"hanami.ini";
-
-	OFINIFile *config = [OFINIFile fileWithIRI:[OFIRI fileIRIWithPath:configPath]];
-	OFINISection *hanamiSection = [config sectionForName:@"hanami"];
+	HanamiConfig *config = [HanamiConfig instanceFor:@"hanami"];
 
 	// Plugins
-	OFString *_pluginsPathStr = [hanamiSection stringValueForKey:@"plugin_dir"];
-	if (_pluginsPathStr == nil)
-		_pluginsPathStr = @"plugins";
-	_pluginsPath = [OFIRI fileIRIWithPath:_pluginsPathStr isDirectory:1];
-
+	_pluginsPath = [OFIRI fileIRIWithPath:[config valueForKey:@"plugin_dir" defaultValue:@"plugins"] isDirectory:1];
 	_plugins = [[OFMutableArray alloc] init];
 	_pluginModules = [[OFMutableArray alloc] init];
+
+	// create state dir
+	OFIRI *statePath = [OFIRI fileIRIWithPath:[config valueForKey:@"state_dir" defaultValue:@"state"] isDirectory:1];
+	@try {
+		[[OFFileManager defaultManager] createDirectoryAtIRI:statePath];
+	} @catch (OFCreateDirectoryFailedException *ex) {
+		if (ex.errNo == EEXIST)
+			OFLog(@"Hanami: State directory already exists ^_^");
+		else
+			@throw (ex); // rethrow just in case
+	}
 
 	[self loadPlugins];
 
 	// Entries
-	OFString *_entriesPathStr = [hanamiSection stringValueForKey:@"entries_dir"];
-	if (_entriesPathStr == nil)
-		_entriesPathStr = @"entries";
-	_entriesPath = [OFIRI fileIRIWithPath:_entriesPathStr isDirectory:1];
+	_entriesPath = [OFIRI fileIRIWithPath:[config valueForKey:@"entries_dir" defaultValue:@"entries"] isDirectory:1];
 
 	// static files
-	OFString *_staticPathStr = [hanamiSection stringValueForKey:@"static_dir"];
-	if (_staticPathStr == nil)
-		_staticPathStr = @"static";
-	_staticPath = [OFIRI fileIRIWithPath:_staticPathStr isDirectory:1];
+	_staticPath = [OFIRI fileIRIWithPath:[config valueForKey:@"static_dir" defaultValue:@"static"] isDirectory:1];
 
 	// exclusions
-	OFString *exclusions = [hanamiSection stringValueForKey:@"exclude"];
+	OFString *exclusions = [config valueForKey:@"exclude" defaultValue:@""];
 	if (exclusions != nil)
 		_excluded = [exclusions componentsSeparatedByString:@" "];
 	else
 		_excluded = [[OFArray alloc] init];
 
 	// host n port
-	OFString *_host = [hanamiSection stringValueForKey:@"host"];
-	int _port = [[hanamiSection stringValueForKey:@"port"] intValue];
+	OFString *_host = [config valueForKey:@"host" defaultValue:@"127.0.0.1"];
+	int _port = [[config valueForKey:@"port" defaultValue:@"8999"] intValue];
 
 	// static var map, global constants
 	staticVarMap = [[OFMutableDictionary alloc] init];
 	staticVarMap[@"$content_type"] = HTMLContentType;
-	staticVarMap[@"$blog_title"] = [hanamiSection stringValueForKey:@"blog_title"];
-	staticVarMap[@"$blog_description"] = [hanamiSection stringValueForKey:@"blog_description"];
+	staticVarMap[@"$blog_title"] = [config valueForKey:@"blog_title" defaultValue:@"My Weblog!"];
+	staticVarMap[@"$blog_description"] = [config valueForKey:@"blog_description" defaultValue:@"rwar"];
 	staticVarMap[@"$url"] = [OFString stringWithFormat:@"http://%@:%d", _host, _port];
 
 	_server = [[OFHTTPServer alloc] init];
@@ -167,7 +171,6 @@ static OFMutableDictionary *staticVarMap;
 	_server.delegate = self;
 	[_server start];
 	OFLog(@"Hanami: Started HTTP server at: %@:%d, version: %@", _host, _port, VERSION);
-	[[OFRunLoop mainRunLoop] run];
 }
 
 #pragma mark - Delegate Methods
@@ -206,25 +209,49 @@ return; }
 		return;
 	}
 
+	OFData *requestData;
+	if (requestBody != nil)
+		requestData = [requestBody readDataUntilEndOfStream];
+
 	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
+	// fill in some info that could be useful for widgets like request ip
+	[varMap setValue:OFSocketAddressString(request.remoteAddress) forKey:@"$request::address"];
+	[varMap setValue:request.IRI.path forKey:@"$request::path"];
+
+	OFLog(@"Hanami: Registered Plugins: %@", _plugins);
 
 	for (id<HanamiPlugin> plugin in _plugins) {
+		OFLog(@"Hanami: Calling %@ to transform map", plugin);
 		[plugin transformMap:varMap];
-		if (![plugin respondsToSelector:@selector(handleRequest:response:andVarMap:)])
+	}
+
+	for (id<HanamiPlugin> plugin in _plugins) {
+		if (![plugin respondsToSelector:@selector(handleRequest:requestData:andVarMap:)])
 			continue; // meep, our plugin doesnt respond to this
-		HanamiPluginResult *plugResult = [plugin handleRequest:request response:response andVarMap:varMap];
-		if (plugResult != nil) {
+		OFLog(@"Hanami: Calling %@ to handle request", plugin);
+		HanamiPluginResult *plugResult = [plugin handleRequest:request requestData:requestData andVarMap:varMap];
+		if (plugResult != nil && [plugResult isKindOfClass:[HanamiPluginResult class]]) {
 			// we've got a handled request ^_^
+			OFLog(@"Hanami: Handling with %@", plugin);
 			response.statusCode = plugResult.statusCode;
-			response.headers = @{
-				@"Content-Type": plugResult.contentType
-			};
+			response.headers = plugResult.headers;
 			// by now the plugin should written either $raw or $body, we check $raw first to handle "static" files
-			if ([varMap objectForKey:@"$raw"])
-				[response writeData:[varMap objectForKey:@"$raw"]];
-			else
+@try {
+			if ([varMap objectForKey:@"$raw"]) {
+				if ([[varMap objectForKey:@"$raw"] isKindOfClass:[OFData class]])
+					[response writeData:[varMap objectForKey:@"$raw"]];
+				else if ([[varMap objectForKey:@"$raw"] isKindOfClass:[OFString class]])
+					[response writeString:[varMap objectForKey:@"$raw"]];
+				else
+					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", plugin, [[varMap objectForKey:@"$raw"] class]);
+			} else
 				[self wrapResponse:response withStory:[plugResult render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
 			return;
+}
+@catch (OFException *ex) {
+			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+			return;
+}
 		}
 	}
 
@@ -267,7 +294,19 @@ return; }
 
 - (void)loadPlugins {
 	// the idea is init.d style, 01, 02, 03 is the order
-	for (OFIRI *file in [[OFFileManager defaultManager] contentsOfDirectoryAtIRI:_pluginsPath]) {
+	// the worst code in this program by far, idk how to do it not like this i fear
+	// works with both windows and linux though..
+	for (OFIRI *file in [[[OFFileManager defaultManager] contentsOfDirectoryAtIRI:_pluginsPath] sortedArrayUsingComparator:^OFComparisonResult(id  _Nonnull left, id  _Nonnull right){
+        OFIRI *_left = left;
+		OFIRI *_right = right;
+#ifdef OF_WINDOWS
+        if ([[[_left lastPathComponent] substringToIndex:2] intValue] < [[[_right lastPathComponent] substringToIndex:2] intValue])
+#else
+        if ([[[_left lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue] < [[[_right lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue])
+#endif
+			return OFOrderedDescending;
+		return OFOrderedAscending;
+	} options:OFArraySortDescending]) {
 		id<HanamiPlugin> plug = [self loadPlugin:[file fileSystemRepresentation]];
 		if (plug)
 			[_plugins addObject:plug];

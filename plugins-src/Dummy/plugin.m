@@ -11,7 +11,8 @@ Class HanamiPluginClass(void) {
 - (void)transformMap:(OFMutableDictionary *)varMap {
 }
 
-- (HanamiPluginResult *)handleRequest:(OFHTTPRequest *)request response:(OFHTTPResponse *)response andVarMap:(OFMutableDictionary *)varMap {
+- (HanamiPluginResult *)handleRequest:(OFHTTPRequest *)request requestData:(nullable OFData *)requestData andVarMap:(OFMutableDictionary *)varMap {
+    return nil; // please return a valid object if you implement this
 }
 
 - (OFString *)name {

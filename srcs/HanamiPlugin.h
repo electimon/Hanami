@@ -10,5 +10,5 @@ Class HanamiPluginClass(void);
 @property (nonatomic, strong, readonly) OFString *author;
 - (void)transformMap:(OFMutableDictionary *)varMap;
 @optional
-- (HanamiPluginResult *)handleRequest:(OFHTTPRequest *)request response:(OFHTTPResponse *)response andVarMap:(OFMutableDictionary *)varMap;
+- (HanamiPluginResult *)handleRequest:(OFHTTPRequest *)request requestData:(nullable OFData *)requestData andVarMap:(OFMutableDictionary *)varMap;
 @end

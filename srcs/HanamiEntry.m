@@ -1,5 +1,5 @@
 #import "HanamiEntry.h"
-#import "HanamiUtils.h""
+#import "HanamiUtils.h"
 
 @implementation HanamiEntry
 
@@ -45,7 +45,6 @@
 	[localVarMap setValue:[self.path.lastPathComponent stringByDeletingPathExtension] forKey:@"$fn"];
 	// the reason we do the \\ to / is because on windows stringByDeletingLastPathComponent returns the appropriate path component divider for the runtime os
 	[localVarMap setValue:[[self.relPath stringByDeletingLastPathComponent] stringByReplacingOccurrencesOfString:@"\\" withString:@"/"] forKey:@"$path"];
-	OFLog(@"VarMap: %@", localVarMap);
     return [HanamiUtils transformTemplate:template varMap:localVarMap];
 }
 
