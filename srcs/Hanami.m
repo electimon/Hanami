@@ -15,12 +15,14 @@
 
 OF_APPLICATION_DELEGATE(Hanami)
 
-@implementation Hanami {
-	OFIRI *_entriesPath;
-	OFIRI *_staticPath;
-	OFIRI *_pluginsPath;
-	OFArray *_excluded;
-}
+@interface Hanami (Private)
+@property (nonatomic, strong) OFIRI *_entriesPath;
+@property (nonatomic, strong) OFIRI *_staticPath;
+@property (nonatomic, strong) OFIRI *_pluginsPath;
+@property (nonatomic, strong) OFArray *_excluded;
+@end
+
+@implementation Hanami
 
 #pragma mark - My Remarks
 

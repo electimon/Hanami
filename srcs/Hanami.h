@@ -13,6 +13,10 @@ OF_ASSUME_NONNULL_BEGIN
 	OFHTTPServer *_server;
 	OFMutableArray *_plugins;
 	OFMutableArray *_pluginModules; // keeps HanamiModule (and thus dlopen handle) alive
+	OFIRI *_entriesPath;
+	OFIRI *_staticPath;
+	OFIRI *_pluginsPath;
+	OFArray *_excluded;
 }
 @property (nonatomic, strong) OFMutableArray *plugins;
 @end
