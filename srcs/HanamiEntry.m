@@ -30,7 +30,7 @@
     [localVarMap setValue:[OFString stringWithFormat:@"%d", self.modificationDate.localDayOfMonth] forKey:@"$da"];
     [localVarMap setValue:[OFString stringWithFormat:@"%d", self.modificationDate.localYear] forKey:@"$yr"];
 
-	size_t idx = [contents indexOfCharacterFromSet:OFCharacterSet.newlineCharacterSet];
+	size_t idx = [contents indexOfCharacterFromSet:[OFCharacterSet newlineCharacterSet]];
 
 	OFString *first, *rest;
 	if (idx != OFNotFound) {

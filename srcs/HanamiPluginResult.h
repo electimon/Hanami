@@ -1,11 +1,6 @@
 #import <ObjFW/ObjFW.h>
 
-@interface HanamiPluginResult : OFObject {
-	int _statusCode;
-	OFDictionary *_headers;
-	OFString *_title;
-	OFString *_body;
-}
+@interface HanamiPluginResult : OFObject
 - (instancetype)initWithStatusCode:(int)statusCode title:(OFString *)title headers:(OFDictionary *)headers andBody:(OFString *)body;
 - (instancetype)initWithStatusCode:(int)statusCode contentType:(OFString *)contentType title:(OFString *)title andBody:(OFString *)body;
 - (instancetype)initWithStatusCode:(int)statusCode headers:(OFDictionary *)headers;

@@ -1,6 +1,9 @@
 #import "HanamiConfig.h"
 
-@implementation HanamiConfig
+@implementation HanamiConfig {
+    OFString *configName;
+    OFINIFile *iniFile;
+}
 
 static OFMutableDictionary *instances;
 

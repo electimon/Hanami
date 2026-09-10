@@ -1,12 +1,6 @@
 #import <ObjFW/ObjFW.h>
 
-@interface HanamiEntry : OFObject <OFComparing> {
-	OFIRI *_path;
-	OFString *_relPath;
-	OFDate *_modificationDate;
-	OFDate *_creationDate;
-}
-
+@interface HanamiEntry : OFObject <OFComparing>
 - (instancetype)initWithIRI:(OFIRI *)iri relativePath:(OFString *)relPath;
 - (OFString *)render:(OFString *)template varMap:(OFDictionary *)varMap;
 @property (nonatomic, strong, readonly) OFIRI *path;

@@ -5,7 +5,7 @@ VERSION = 0.1
 all: $(PROG) plugins
 
 $(PROG): $(SRCS)
-	objfw-compile -Wl,--export-dynamic --arc -g -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
+	objfw-compile -Wl,--export-dynamic --package ObjFWTLS --arc -g -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
 
 plugins:
 	@echo "Building plugins..."
