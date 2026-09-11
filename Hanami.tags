@@ -1,0 +1,26 @@
+# format=tagmanager
+HTMLContentTypeÌ16384Ö0ÏOFString
+HTMLFootÌ16384Ö0ÏOFString
+HTMLHeadÌ16384Ö0ÏOFString
+HTMLStoryÌ16384Ö0ÏOFString
+HTML_FOOTÌ4Îanon_enum_0Ö0
+HTML_HEADÌ4Îanon_enum_0Ö0
+HTML_STORYÌ4Îanon_enum_0Ö0
+HanamiEntryÌ16Í(instancetype)Ö0Ï@end
+HanamiPluginResultÌ16Í(instancetype)Ö0Ï@end
+OF_APPLICATION_DELEGATEÌ16Í(Hanami)Ö0Ï@end
+anon_enum_0Ì2Ö0
+bailÌ65536Ö0
+bodyÌ16384Ö0Ï
+creationDateÌ16384Ö0Ï@property @property *
+defaultValueÌ16384Ö0Ï@end
+getTemplateÌ16Í(html_type_t)Ö0
+html_type_tÌ4096Ö0Ïanon_enum_0
+instancesÌ16384Ö0ÏOFMutableDictionary
+monthÌ16384Ö0Ïchar
+nameÌ16384Ö0Ï@property @property *
+staticVarMapÌ16384Ö0ÏOFMutableDictionary
+titleÌ16384Ö0Ï@property @property *
+transformationRegexÌ16384Ö0Ïchar
+varMapÌ16384Ö0Ï@property
+withStoryÌ16Í(id)Ö0Ïresponse

@@ -1,6 +1,5 @@
 #import "Hanami.h"
 #include <ObjFW/OFException.h>
-#include <asm-generic/errno-base.h>
 #include <ObjFW/OFCreateDirectoryFailedException.h>
 #include <ObjFW/OFFileManager.h>
 #include <ObjFW/OFObject.h>
