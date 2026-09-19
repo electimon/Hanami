@@ -1,15 +1,11 @@
 #import "Hanami.h"
-#include <ObjFW/OFException.h>
-#include <ObjFW/OFCreateDirectoryFailedException.h>
-#include <ObjFW/OFFileManager.h>
-#include <ObjFW/OFObject.h>
-#include <ObjFW/OFArray.h>
+#import <MYArgParser.h>
 #include "HanamiPluginResult.h"
 #import "HanamiUtils.h"
 #import "HanamiEntry.h"
 #import "HanamiPlugin.h"
 #import "HanamiConfig.h"
-
+#import "HanamiFileManager.h"
 #include <stdio.h>
 
 OF_APPLICATION_DELEGATE(Hanami)
@@ -58,93 +54,80 @@ static const OFString *HTMLFoot = @"        <div align=\"center\">\n"
 "    </body>\n"
 "</html>\n";
 
+static const OFString *HTMLStatus = @"		<div>\n"
+"            <h3>Hanami has encountered an error...</h3>\n"
+"            <div>Status: $status_code\n"
+"        </div>\n";
+
 typedef enum {
 	HTML_HEAD = 0,
 	HTML_STORY,
 	HTML_FOOT
 } html_type_t;
 
+typedef enum {
+	HTTP_STATUS_400 = 0,	// RFC9110, Bad Request
+	HTTP_STATUS_401,		// RFC9110, Unauthorized
+	HTTP_STATUS_403,		// RFC9110, Forbidden
+	HTTP_STATUS_404,		// RFC9110, Not Found
+	HTTP_STATUS_405 = 5,	// RFC9110, Method not Allowed
+	HTTP_STATUS_410 = 10,	// RFC9110, Gone
+} html_client_error_t;
+
+typedef enum {
+	HTTP_STATUS_500 = 0,	// RFC9110, Internal Server Error
+} html_server_error_t;
+
+typedef enum {
+	HTTP_CLIENT_ERROR_STATUS = 0,
+	HTTP_SERVER_ERROR_STATUS
+} html_error_type_t;
+
 static OFMutableDictionary *staticVarMap;
 
-#pragma mark -
+#pragma mark - Dynamics xd
+// should not have this section at all tbh, and have config be typed but we aint there yet
 
-- (void)applicationDidFinishLaunching: (OFNotification *)notification
-{
-	// Configuration taken from ObjGemCap, would love to move it out of this method
-	OFString *__autoreleasing configPath = nil;
-	const OFOptionsParserOption options[] = {
-		{ 'c', @"config", 1, NULL, &configPath },
-		{ '\0', nil, 0, NULL, NULL },
-	};
-	OFOptionsParser *optionsParser = [OFOptionsParser parserWithOptions: options];
-	OFUnichar option;
+static BOOL wrapStatusPages = NO;
 
-	while ((option = [optionsParser nextOption]) != '\0') {
-		switch (option) {
-		case ':':
-			if (optionsParser.lastLongOption != nil)
-				[OFStdErr writeFormat:
-				    @"%@: Argument for option --%@ missing\n",
-				    [OFApplication programName],
-				    optionsParser.lastLongOption];
-			else
-				[OFStdErr writeFormat:
-				    @"%@: Argument for option -%C missing\n",
-				    [OFApplication programName],
-				    optionsParser.lastOption];
+#pragma mark - Launcher
 
-			[OFApplication terminateWithStatus: 1];
-			break;
-		case '=':
-			[OFStdErr writeFormat:
-			    @"%@: Option --%@ takes no argument\n",
-			    [OFApplication programName],
-			    optionsParser.lastLongOption];
+- (OFArray<MYArgOption *> *)getOptions {
+	return @[
+		[MYArgOption optionWithLongForm:@"--config" shortForm:@"-c" valueType:[OFString class] withImplictValue:@""]
+	];
+}
 
-			[OFApplication terminateWithStatus: 1];
-			break;
-		case '?':
-			if (optionsParser.lastLongOption != nil)
-				[OFStdErr writeFormat:
-				    @"%@: Unknown option: --%@\n",
-				    [OFApplication programName],
-				    optionsParser.lastLongOption];
-			else
-				[OFStdErr writeFormat:
-				    @"%@: Unknown option: -%@\n",
-				    [OFApplication programName],
-				    optionsParser.lastOption];
-
-			[OFApplication terminateWithStatus: 1];
-			break;
-		}
+- (OFString *)parseConfigPathFromArgs:(OFArray *)args {
+	if (args.count <= 0) {
+		OFLog(@"Hanami: Please specify base config path with -c or --config, even if it's just $PWD or ./");
+		[OFApplication terminateWithStatus:1];
 	}
+	MYArgParser *parser = [MYArgParser parserWithOptions:[self getOptions]];
+	MYArgMatch *configPathMatch = [[parser getMatches:args] objectAtIndex:0];
+	return configPathMatch.value;
+}
 
-	HanamiConfig *config = [HanamiConfig instanceFor:@"hanami"];
-
+- (void)bootstrapRuntimeRequirements:(HanamiConfig *)config {
 	// Plugins
-	_pluginsPath = [OFIRI fileIRIWithPath:[config valueForKey:@"plugin_dir" defaultValue:@"plugins"] isDirectory:1];
+	_pluginsPath = [HanamiFileManager IRIWithPath:[config valueForKey:@"plugin_dir" defaultValue:@"plugins"]];
+	[HanamiFileManager createDirectoryAndParents:_pluginsPath];
 	_plugins = [[OFMutableArray alloc] init];
 	_pluginModules = [[OFMutableArray alloc] init];
 
 	// create state dir
-	OFIRI *statePath = [OFIRI fileIRIWithPath:[config valueForKey:@"state_dir" defaultValue:@"state"] isDirectory:1];
-	@try {
-		[[OFFileManager defaultManager] createDirectoryAtIRI:statePath];
-	} @catch (OFCreateDirectoryFailedException *ex) {
-		if (ex.errNo == EEXIST)
-			OFLog(@"Hanami: State directory already exists ^_^");
-		else
-			@throw (ex); // rethrow just in case
-	}
+	OFIRI *statePath = [HanamiFileManager IRIWithPath:[config valueForKey:@"state_dir" defaultValue:@"state"]];
+	[HanamiFileManager createDirectoryAndParents:statePath];
 
 	[self loadPlugins];
 
 	// Entries
-	_entriesPath = [OFIRI fileIRIWithPath:[config valueForKey:@"entries_dir" defaultValue:@"entries"] isDirectory:1];
+	_entriesPath = [HanamiFileManager IRIWithPath:[config valueForKey:@"entries_dir" defaultValue:@"entries"]];
+	[HanamiFileManager createDirectoryAndParents:_entriesPath];
 
 	// static files
-	_staticPath = [OFIRI fileIRIWithPath:[config valueForKey:@"static_dir" defaultValue:@"static"] isDirectory:1];
+	_staticPath = [HanamiFileManager IRIWithPath:[config valueForKey:@"static_dir" defaultValue:@"static"]];
+	[HanamiFileManager createDirectoryAndParents:_staticPath];
 
 	// exclusions
 	OFString *exclusions = [config valueForKey:@"exclude" defaultValue:@""];
@@ -152,6 +135,15 @@ static OFMutableDictionary *staticVarMap;
 		_excluded = [exclusions componentsSeparatedByString:@" "];
 	else
 		_excluded = [[OFArray alloc] init];
+
+	// misc settings
+	wrapStatusPages = [[config valueForKey:@"wrap_status_pages" defaultValue:@"0"] intValue];
+}
+
+- (void)applicationDidFinishLaunching: (OFNotification *)notification {
+	[HanamiConfig setConfigBasePath:[self parseConfigPathFromArgs:[[OFApplication sharedApplication] arguments]]];
+	HanamiConfig *config = [HanamiConfig instanceFor:@"hanami"];
+	[self bootstrapRuntimeRequirements:config];
 
 	// host n port
 	OFString *_host = [config valueForKey:@"host" defaultValue:@"127.0.0.1"];
@@ -181,8 +173,7 @@ static OFMutableDictionary *staticVarMap;
 } @catch (OFException *ex) { OFLog(@"%@", ex);} \
 return; }
 
-- (void)wrapResponse:(OFHTTPResponse *)response withStory:(id)story \
-	andVarMap:(OFMutableDictionary *)varMap {
+- (void)wrapResponse:(OFHTTPResponse *)response withBody:(id)story andVarMap:(OFMutableDictionary *)varMap {
 	[response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_HEAD] varMap:varMap]];
 	if ([story isKindOfClass:[OFString class]])
 		[response writeString:story];
@@ -244,7 +235,7 @@ return; }
 				else
 					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", plugin, [[varMap objectForKey:@"$raw"] class]);
 			} else
-				[self wrapResponse:response withStory:[plugResult render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
+				[self wrapResponse:response withBody:[plugResult render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
 			return;
 }
 @catch (OFException *ex) {
@@ -281,13 +272,11 @@ return; }
 		iri = [[iri IRIByDeletingPathExtension] IRIByAppendingPathExtension:@"txt"]; // todo change this to configurable option
 		HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:iri relativePath:[HanamiUtils relativePathFrom:_entriesPath to:iri]];
 		if (entry)
-			[self wrapResponse:response withStory:[entry render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
+			[self wrapResponse:response withBody:[entry render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
 		else
 			bail; // todo add 404
 	}
 }
-
-#pragma mark -
 
 #pragma mark - Plugins
 
@@ -331,8 +320,6 @@ return; }
 	return nil; // no plugin found for this path
 }
 
-#pragma mark -
-
 #pragma mark - Entries
 
 - (OFArray *)getEntriesAtIRI:(nonnull OFIRI *)iri {
@@ -351,6 +338,43 @@ return; }
 	return out;
 }
 
+- (OFString *)getTemplateAtIRI:(OFIRI *)iri defaultValue:(OFString *)defaultValue {
+	if (![[OFFileManager defaultManager] fileExistsAtIRI:iri])
+		return defaultValue;
+	return [[OFString alloc] initWithContentsOfIRI:iri];
+}
+
+- (OFString *)getTemplate:(html_type_t)type {
+	switch (type) {
+		case HTML_HEAD:
+			return [self getTemplateAtIRI:[_entriesPath IRIByAppendingPathComponent:@"head.html"] defaultValue:[HTMLHead copy]];
+		case HTML_STORY:
+			return [self getTemplateAtIRI:[_entriesPath IRIByAppendingPathComponent:@"story.html"] defaultValue:[HTMLStory copy]];
+		case HTML_FOOT:
+			return [self getTemplateAtIRI:[_entriesPath IRIByAppendingPathComponent:@"foot.html"] defaultValue:[HTMLFoot copy]];
+	}
+}
+
+- (OFString *)getClientErrorStatusTemplate:(html_client_error_t)statusCode {
+	return [self getTemplateAtIRI:[_entriesPath IRIByAppendingPathComponent:[OFString stringWithFormat:@"%d", 400 + statusCode]] defaultValue:[HTMLStatus copy]];
+}
+
+- (OFString *)getServerErrorStatusTemplate:(html_client_error_t)statusCode {
+	return [self getTemplateAtIRI:[_entriesPath IRIByAppendingPathComponent:[OFString stringWithFormat:@"%d", 500 + statusCode]] defaultValue:[HTMLStatus copy]];
+}
+
+
+- (OFString *)getStatusTemplate:(html_error_type_t)statusType statusCode:(int)statusCode {
+	switch (statusType) {
+		case HTTP_CLIENT_ERROR_STATUS:
+			return [self getClientErrorStatusTemplate:statusCode];
+		case HTTP_SERVER_ERROR_STATUS:
+			return [self getServerErrorStatusTemplate:statusCode];
+	}
+}
+
+#pragma mark - Rendering
+
 - (OFString *)renderEntryListAtIRI:(nonnull OFIRI *)iri varMap:(nonnull OFMutableDictionary *)varMap {
 	OFMutableString *out = [[OFMutableString alloc] init];
 	OFArray *entries = [self getEntriesAtIRI:iri];
@@ -368,34 +392,15 @@ return; }
 	return out;
 }
 
-- (OFString *)getTemplate:(html_type_t)type {
-	OFString *out;
-	switch (type) {
-		case HTML_HEAD: {
-			OFIRI *iri = [_entriesPath IRIByAppendingPathComponent:@"head.html"];
-			if (![[OFFileManager defaultManager] fileExistsAtIRI:iri])
-				out = [HTMLHead copy];
-			else
-				out = [[OFString alloc] initWithContentsOfIRI:[_entriesPath IRIByAppendingPathComponent:@"head.html"]];
-			break;
-		}
-		case HTML_STORY: {
-			OFIRI *iri = [_entriesPath IRIByAppendingPathComponent:@"story.html"];
-			if (![[OFFileManager defaultManager] fileExistsAtIRI:iri])
-				out = [HTMLStory copy];
-			else
-				out = [[OFString alloc] initWithContentsOfIRI:[_entriesPath IRIByAppendingPathComponent:@"story.html"]];
-			break;
-		}
-		case HTML_FOOT: {
-			OFIRI *iri = [_entriesPath IRIByAppendingPathComponent:@"foot.html"];
-			if (![[OFFileManager defaultManager] fileExistsAtIRI:iri])
-				out = [HTMLFoot copy];
-			else
-				out = [[OFString alloc] initWithContentsOfIRI:[_entriesPath IRIByAppendingPathComponent:@"foot.html"]];
-			break;
-		}
+
+
+- (void)writeClientErrorPage:(html_client_error_t)status response:(OFHTTPResponse *)response varMap:(OFMutableDictionary *)varMap {
+	if (wrapStatusPages) {
+		[self wrapResponse:response withBody:HTMLStatus andVarMap:varMap];
+		return;
 	}
-	return out;
+
+
 }
+
 @end

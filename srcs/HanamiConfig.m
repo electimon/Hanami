@@ -1,11 +1,23 @@
 #import "HanamiConfig.h"
+#import "HanamiFileManager.h"
 
 @implementation HanamiConfig {
     OFString *configName;
     OFINIFile *iniFile;
 }
 
-static OFMutableDictionary *instances;
+static OFMutableDictionary *instances = nil;
+static OFIRI *configBasePath = nil;
+
++ (void)setConfigBasePath:(OFString *)basePath {
+    configBasePath = [OFIRI fileIRIWithPath:basePath];
+}
+
++ (OFIRI *)getConfigBasePath {
+    if (configBasePath == nil)
+        @throw ([OFException exception]); // todo
+    return configBasePath;
+}
 
 + (instancetype)instanceFor:(OFString *)name {
     if (!instances)
@@ -14,7 +26,10 @@ static OFMutableDictionary *instances;
     if (!configInstance) {
         configInstance = [[HanamiConfig alloc] init];
         configInstance->configName = name;
-        configInstance->iniFile = [OFINIFile fileWithIRI:[OFIRI fileIRIWithPath:[OFString stringWithFormat:@"configs/%@.ini", name]]];
+        if (configBasePath != nil)
+            configInstance->iniFile = [OFINIFile fileWithIRI:[configBasePath IRIByAppendingPathComponent:[OFString stringWithFormat:@"configs/%@.ini", name]]];
+        else
+            configInstance->iniFile = [OFINIFile fileWithIRI:[OFIRI fileIRIWithPath:[OFString stringWithFormat:@"configs/%@.ini", name]]];
         [instances setObject:configInstance forKey:name];
     }
     return configInstance;

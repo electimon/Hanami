@@ -5,7 +5,7 @@ VERSION = 0.1
 all: $(PROG) plugins
 
 $(PROG): $(SRCS)
-	objfw-compile -Wl,--export-dynamic --arc -g -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
+	objfw-compile -Wl,--export-dynamic --arc -g -L /usr/local/lib -lmayushii -I /usr/local/include/mayushii -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
 
 plugins:
 	@echo "Building plugins..."
@@ -32,7 +32,7 @@ gen_compiledb:
 		echo "{" >> compile_commands.json; \
 		echo "  \"directory\": \"$$(pwd)\"," >> compile_commands.json; \
 		echo "  \"file\": \"$$f\"," >> compile_commands.json; \
-		printf "  \"command\": \"clang -I wregex $$FLAGS -c $$f\"\n" >> compile_commands.json; \
+		printf "  \"command\": \"clang -I wregex -I /usr/local/include/mayushii $$FLAGS -c $$f\"\n" >> compile_commands.json; \
 		echo "}" >> compile_commands.json; \
 	done; \
 	echo "]" >> compile_commands.json
