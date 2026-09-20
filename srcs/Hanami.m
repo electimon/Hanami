@@ -56,7 +56,7 @@ static const OFString *HTMLFoot = @"        <div align=\"center\">\n"
 
 static const OFString *HTMLStatus = @"		<div>\n"
 "            <h3>Hanami has encountered an error...</h3>\n"
-"            <div>Status: $status_code\n"
+"            <div>Status: $status_code, Error: $error</div>\n"
 "        </div>\n";
 
 typedef enum {
@@ -89,6 +89,7 @@ static OFMutableDictionary *staticVarMap;
 // should not have this section at all tbh, and have config be typed but we aint there yet
 
 static BOOL wrapStatusPages = NO;
+static BOOL tryContinueOnPluginException = NO;
 
 #pragma mark - Launcher
 
@@ -129,6 +130,10 @@ static BOOL wrapStatusPages = NO;
 	_staticPath = [HanamiFileManager IRIWithPath:[config valueForKey:@"static_dir" defaultValue:@"static"]];
 	[HanamiFileManager createDirectoryAndParents:_staticPath];
 
+	// configs path
+	// OFIRI *configsPath = [HanamiFileManager IRIWithPath:[config valueForKey:@"static_dir" defaultValue:@"static"]];
+	// [HanamiFileManager createDirectoryAndParents:configsPath];
+
 	// exclusions
 	OFString *exclusions = [config valueForKey:@"exclude" defaultValue:@""];
 	if (exclusions != nil)
@@ -137,7 +142,8 @@ static BOOL wrapStatusPages = NO;
 		_excluded = [[OFArray alloc] init];
 
 	// misc settings
-	wrapStatusPages = [[config valueForKey:@"wrap_status_pages" defaultValue:@"0"] intValue];
+	wrapStatusPages = [[config valueForKey:@"wrap_status_pages" defaultValue:@"1"] intValue];
+	tryContinueOnPluginException = [[config valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue];
 }
 
 - (void)applicationDidFinishLaunching: (OFNotification *)notification {
@@ -183,10 +189,15 @@ return; }
 }
 
 - (void)server:(nonnull OFHTTPServer *)server didReceiveRequest:(nonnull OFHTTPRequest *)request requestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response {
+	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
 	OFArray *pathComponents = request.IRI.pathComponents;
+
 	for (OFString *comp in pathComponents)
-		if ([comp isEqual:@".."] || [comp containsString:@"\\"])
+		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
+			[varMap setObject:@"Detected path traversal attempt!" forKey:@"$error"];
+			[self writeClientErrorPage:HTTP_CLIENT_ERROR_STATUS statusCode:HTTP_STATUS_400 response:response andVarMap:varMap];
 			return; // should be bail
+		}
 
 	if ([pathComponents count] > 1 && [[pathComponents objectAtIndex:1] isEqual:@"static"]) {
 		OFString *rel = [[pathComponents objectsInRange:OFMakeRange(2, pathComponents.count - 2)] componentsJoinedByString:@"/"];
@@ -194,8 +205,11 @@ return; }
 		if (iri == nil) return; // todo add 404 // should be bail
 		if ([[OFFileManager defaultManager] fileExistsAtIRI:iri])
 			[response writeData:[OFData dataWithContentsOfIRI:iri]];
-		else
-			return; // should be bail
+		else {
+			[varMap setObject:@"File not found." forKey:@"$error"];
+			[self writeClientErrorPage:HTTP_CLIENT_ERROR_STATUS statusCode:HTTP_STATUS_404 response:response andVarMap:varMap];
+		}
+		
 		return;
 	}
 
@@ -203,7 +217,6 @@ return; }
 	if (requestBody != nil)
 		requestData = [requestBody readDataUntilEndOfStream];
 
-	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
 	// fill in some info that could be useful for widgets like request ip
 	[varMap setValue:OFSocketAddressString(request.remoteAddress) forKey:@"$request::address"];
 	[varMap setValue:request.IRI.path forKey:@"$request::path"];
@@ -212,14 +225,35 @@ return; }
 
 	for (id<HanamiPlugin> plugin in _plugins) {
 		OFLog(@"Hanami: Calling %@ to transform map", plugin);
+@try {
 		[plugin transformMap:varMap];
+} @catch (OFException *ex) {
+		OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+		if (!tryContinueOnPluginException) {
+			[varMap setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$error"];
+			[self writeClientErrorPage:HTTP_SERVER_ERROR_STATUS statusCode:HTTP_STATUS_500 response:response andVarMap:varMap];
+			return;
+		}
+		OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
+}
 	}
 
 	for (id<HanamiPlugin> plugin in _plugins) {
 		if (![plugin respondsToSelector:@selector(handleRequest:requestData:andVarMap:)])
 			continue; // meep, our plugin doesnt respond to this
 		OFLog(@"Hanami: Calling %@ to handle request", plugin);
-		HanamiPluginResult *plugResult = [plugin handleRequest:request requestData:requestData andVarMap:varMap];
+		HanamiPluginResult *plugResult;
+@try {
+			plugResult = [plugin handleRequest:request requestData:requestData andVarMap:varMap];
+} @catch (OFException *ex) {
+			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+			if (!tryContinueOnPluginException) {
+				[varMap setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$error"];
+				[self writeClientErrorPage:HTTP_SERVER_ERROR_STATUS statusCode:HTTP_STATUS_500 response:response andVarMap:varMap];
+				return;
+			}
+			OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
+}
 		if (plugResult != nil && [plugResult isKindOfClass:[HanamiPluginResult class]]) {
 			// we've got a handled request ^_^
 			OFLog(@"Hanami: Handling with %@", plugin);
@@ -240,6 +274,8 @@ return; }
 }
 @catch (OFException *ex) {
 			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+			[varMap setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$error"];
+			[self writeClientErrorPage:HTTP_SERVER_ERROR_STATUS statusCode:HTTP_STATUS_500 response:response andVarMap:varMap];
 			return;
 }
 		}
@@ -273,8 +309,10 @@ return; }
 		HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:iri relativePath:[HanamiUtils relativePathFrom:_entriesPath to:iri]];
 		if (entry)
 			[self wrapResponse:response withBody:[entry render:[self getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
-		else
-			bail; // todo add 404
+		else {
+			[varMap setObject:@"File not found." forKey:@"$error"];
+			[self writeClientErrorPage:HTTP_CLIENT_ERROR_STATUS statusCode:HTTP_STATUS_404 response:response andVarMap:varMap];
+		}
 	}
 }
 
@@ -394,13 +432,15 @@ return; }
 
 
 
-- (void)writeClientErrorPage:(html_client_error_t)status response:(OFHTTPResponse *)response varMap:(OFMutableDictionary *)varMap {
+- (void)writeClientErrorPage:(html_error_type_t)type statusCode:(int)statusCode response:(OFHTTPResponse *)response andVarMap:(OFMutableDictionary *)varMap {
 	if (wrapStatusPages) {
-		[self wrapResponse:response withBody:HTMLStatus andVarMap:varMap];
+		response.statusCode = statusCode;
+		[self wrapResponse:response withBody:[HanamiUtils transformTemplate:[self getStatusTemplate:type statusCode:statusCode] varMap:varMap] andVarMap:varMap];
 		return;
 	}
 
-
+	response.statusCode = statusCode;
+	[response writeString:[HanamiUtils transformTemplate:[self getStatusTemplate:type statusCode:statusCode] varMap:varMap]];
 }
 
 @end
