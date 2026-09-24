@@ -1,4 +1,7 @@
 #import "HanamiUtils.h"
+#import "HanamiConfig.h"
+#import "HanamiTemplateHandler.h"
+#import "HanamiPrivateConfig.h"
 
 #include "../wregex/wregex.h"
 
@@ -94,6 +97,33 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 		return nil;
 #endif
 	return target;
+}
+
++ (OFString *)getTemplateAtIRI:(OFIRI *)iri defaultValue:(OFString *)defaultValue {
+	if (iri == nil) {
+		OFLog(@"Hanami: getTemplateAtIRI: IRI is nil!");
+		return defaultValue;
+	}
+	if (![[OFFileManager defaultManager] fileExistsAtIRI:iri])
+		return defaultValue;
+	return [[OFString alloc] initWithContentsOfIRI:iri];
+}
+
++ (OFString *)getTemplate:(html_type_t)type {
+	switch (type) {
+		case HTML_HEAD:
+			return [HanamiUtils getTemplateAtIRI:[entriesPath IRIByAppendingPathComponent:@"head.html"] defaultValue:[HTMLHead copy]];
+		case HTML_STORY:
+			return [HanamiUtils getTemplateAtIRI:[entriesPath IRIByAppendingPathComponent:@"story.html"] defaultValue:[HTMLStory copy]];
+		case HTML_FOOT:
+			return [HanamiUtils getTemplateAtIRI:[entriesPath IRIByAppendingPathComponent:@"foot.html"] defaultValue:[HTMLFoot copy]];
+	}
+}
+
++ (void)wrapResponse:(OFHTTPResponse *)response withBody:(OFString *)story andVarMap:(OFMutableDictionary *)varMap {
+	[response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_HEAD] varMap:varMap]];
+    [response writeString:story];
+	[response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_FOOT] varMap:varMap]];
 }
 
 @end

@@ -1,5 +1,7 @@
 #import "HanamiEntry.h"
 #import "HanamiUtils.h"
+#import "HanamiConfig.h"
+#import "HanamiPrivateConfig.h"
 
 @implementation HanamiEntry
 
@@ -50,6 +52,26 @@
 
 - (OFComparisonResult)compare:(nonnull HanamiEntry *)object {
     return [object.modificationDate compare:self.modificationDate];
+}
+
++ (OFArray *)getEntriesAtIRI:(nonnull OFIRI *)iri {
+	OFMutableArray *out = [[OFMutableArray alloc] init];
+	OFArray *contents = [[OFFileManager defaultManager] contentsOfDirectoryAtIRI:iri];
+	for (OFIRI *entryIRI in contents)
+		if ([[OFFileManager defaultManager] directoryExistsAtIRI:entryIRI])
+			[out addObjectsFromArray:[self getEntriesAtIRI:entryIRI]];
+		else if ([excluded containsObject:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]])
+			continue;
+		else {
+			HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:entryIRI relativePath:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]];
+			if (entry)
+				[out addObject:entry];
+		}
+	return out;
+}
+
+- (OFString *)description {
+	return [[super description] stringByAppendingFormat:@" %@ %@ %@ %@", _path, _relPath, _modificationDate, _creationDate];
 }
 
 @end

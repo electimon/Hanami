@@ -43,7 +43,10 @@ static OFIRI *configBasePath = nil;
 - (void)setValue:(OFString *)value forKey:(nonnull OFString *)key {
     OFINISection *section = [iniFile sectionForName:configName];
     [section setStringValue:value forKey:key];
-    [iniFile writeToIRI:[OFIRI fileIRIWithPath:[OFString stringWithFormat:@"configs/%@.ini", configName]]];
+    if (configBasePath != nil)
+        [iniFile writeToIRI:[configBasePath IRIByAppendingPathComponent:[OFString stringWithFormat:@"configs/%@.ini", configName]]];
+    else
+        [iniFile writeToIRI:[OFIRI fileIRIWithPath:[OFString stringWithFormat:@"configs/%@.ini", configName]]];
 }
 
 @end

@@ -9,12 +9,7 @@ OF_ASSUME_NONNULL_BEGIN
 - (nullable void *)addressForSymbol: (OFString *)symbol;
 @end
 
-@interface Hanami: OFObject <OFApplicationDelegate, OFHTTPServerDelegate> {
-	OFHTTPServer *_server;
-	OFMutableArray *_plugins;
-	OFMutableArray *_pluginModules; // keeps HanamiModule (and thus dlopen handle) alive
-}
-@property (nonatomic, strong) OFMutableArray *plugins;
+@interface Hanami: OFObject <OFApplicationDelegate, OFHTTPServerDelegate>
 @end
 
 OF_ASSUME_NONNULL_END

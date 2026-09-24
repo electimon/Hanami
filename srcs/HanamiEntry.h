@@ -3,6 +3,7 @@
 @interface HanamiEntry : OFObject <OFComparing>
 - (instancetype)initWithIRI:(OFIRI *)iri relativePath:(OFString *)relPath;
 - (OFString *)render:(OFString *)template varMap:(OFDictionary *)varMap;
++ (OFArray *)getEntriesAtIRI:(nonnull OFIRI *)iri;
 @property (nonatomic, strong, readonly) OFIRI *path;
 @property (nonatomic, strong, readonly) OFString *relPath;
 @property (nonatomic, strong, readonly) OFDate *modificationDate;

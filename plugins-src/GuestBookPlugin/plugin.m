@@ -123,6 +123,7 @@ Class HanamiPluginClass(void) {
         %@ \
         </ul> \
     ", time, [digestData stringByBase64Encoding], htmlEntries];
+    [varMap setValue:@"guestbook" forKey:@"$fn"];
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:@"" title:@"Guestbook" andBody:body];
 }
 
