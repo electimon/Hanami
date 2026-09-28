@@ -86,7 +86,14 @@ static OFMutableDictionary *staticVarMap;
 #pragma mark - Delegate Methods
 
 - (BOOL)validateRequest:(OFHTTPRequest *)request varMap:(OFMutableDictionary *)varMap response:(nonnull OFHTTPResponse *)response {
-	OFArray *pathComponents = request.IRI.pathComponents;
+	OFArray *pathComponents;
+	OFString *path;
+@try {
+	pathComponents = [[request IRI] pathComponents];
+	path = [[request IRI] path].pathExtension;
+} @catch (OFException *ex) {
+	return NO;
+}
 
 	for (OFString *comp in pathComponents)
 		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
@@ -98,25 +105,31 @@ static OFMutableDictionary *staticVarMap;
 }
 
 - (BOOL)isRequestStaticFile:(OFHTTPRequest *)request {
-	OFArray *pathComponents = request.IRI.pathComponents;
+	OFArray *pathComponents = [[request IRI] pathComponents];
 	if ([pathComponents count] > 1 && [[pathComponents objectAtIndex:1] isEqual:@"static"]) return YES; else return NO;
 }
 
 - (void)server:(nonnull OFHTTPServer *)server didReceiveRequest:(nonnull OFHTTPRequest *)request requestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response {
 	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
-	OFArray *pathComponents = request.IRI.pathComponents;
 	OFData *requestData;
 
 	if (![self validateRequest:request varMap:varMap response:response])
 		return;
+
+	OFArray *pathComponents = [[request IRI] pathComponents];
 
 	response.statusCode = 200;
 	response.headers = @{
 		@"Content-Type": [varMap valueForKey:@"$content_type"]
 	};
 
-	if (requestBody != nil && ![self isRequestStaticFile:request]) // static file gets shouldnt have us parsing their shit
+	if (requestBody != nil && ![self isRequestStaticFile:request]) { // static file gets shouldnt have us parsing their shit
+@try {
 		requestData = [requestBody readDataUntilEndOfStream];
+} @catch (OFException *ex) {
+		[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap]; return;
+}
+	}
 
 	// fill in some info that could be useful for widgets like request ip
 	[varMap setValue:OFSocketAddressString(request.remoteAddress) forKey:@"$request::address"];
@@ -141,7 +154,13 @@ static OFMutableDictionary *staticVarMap;
 		OFString *rel = [[pathComponents objectsInRange:OFMakeRange(2, pathComponents.count - 2)] componentsJoinedByString:@"/"];
 		OFIRI *iri = [HanamiUtils resolve:rel under:staticPath];
 		if (iri != nil && [[OFFileManager defaultManager] fileExistsAtIRI:iri]) {
-			[response writeData:[OFData dataWithContentsOfIRI:iri]]; return;
+			OFData *data;
+@try {
+			data = [OFData dataWithContentsOfIRI:iri];
+} @catch (OFException *ex) {
+			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap]; return;
+}
+			[response writeData:data]; return;
 		} else {
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
 		}

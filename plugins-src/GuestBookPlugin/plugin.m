@@ -1,11 +1,7 @@
 #import "../../srcs/HanamiPlugin.h"
-#include <ObjFW/OFInvalidEncodingException.h>
-#include <ObjFW/OFCharacterSet.h>
-#include <ObjFW/OFMutableDictionary.h>
-#include <ObjFW/OFString.h>
-#include <ObjFW/OFSHA256Hash.h>
 #import "../../srcs/HanamiPluginResult.h"
 #import "../../srcs/HanamiConfig.h"
+#import "../../srcs/HanamiTemplateDefaults.h"
 
 #import <ObjSQLite3/ObjSQLite3.h>
 
@@ -90,8 +86,6 @@ Class HanamiPluginClass(void) {
         flippy = !flippy;
     }
 
-    OFLog(@"Ret: %@", entries);
-
     OFString *time = [OFString stringWithFormat:@"%.0f", [[OFDate date] timeIntervalSince1970]];
     [hmacObj updateWithBuffer:[time cStringWithEncoding:OFStringEncodingUTF8] length:[time cStringLengthWithEncoding:OFStringEncodingUTF8]];
     [hmacObj calculate];
@@ -124,12 +118,10 @@ Class HanamiPluginClass(void) {
         </ul> \
     ", time, [digestData stringByBase64Encoding], htmlEntries];
     [varMap setValue:@"guestbook" forKey:@"$fn"];
-    return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:@"" title:@"Guestbook" andBody:body];
+    return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:HTMLContentType title:@"Guestbook" andBody:body];
 }
 
 - (OFDictionary *)getParamsFrom:(OFString *)requestString {
-    if (![requestString containsString:@"&"])
-        return nil;
     OFArray *paramsArr = [requestString componentsSeparatedByString:@"&"];
     OFMutableDictionary *paramsDict = [[OFMutableDictionary alloc] init];
     for (OFString *param in paramsArr) {
@@ -139,7 +131,7 @@ Class HanamiPluginClass(void) {
         if ([splitParam count] != 2)
             continue; // not support any param string that has an = in the name or value, = is reserved for the separator sorry
             // although i suppose if either obj is empty itll still be a valid string? caller should check for nil
-        [paramsDict setObject:[splitParam objectAtIndex:1] forKey:[splitParam firstObject]];
+        [paramsDict setObject:[[[splitParam objectAtIndex:1] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding] forKey:[splitParam firstObject]];
     }
     return paramsDict;
 }
@@ -149,10 +141,6 @@ Class HanamiPluginClass(void) {
 
 - (HanamiPluginResult *)handleSubmitRequest:(OFHTTPRequest *)request requestData:(OFData *)requestData andVarMap:(OFMutableDictionary *)varMap {
     OFString *postedString = [OFString stringWithData:requestData encoding:OFStringEncodingUTF8];
-    OFLog(@"az: %@", postedString);
-
-    if (![postedString containsString:@"&"])
-        done(1);
 
     OFDictionary *extractedParams = [self getParamsFrom:postedString];
     if (extractedParams == nil)
@@ -174,7 +162,7 @@ Class HanamiPluginClass(void) {
             stringByReplacingOccurrencesOfString:@"%2B" withString:@"+"] stringByReplacingOccurrencesOfString:@"%2F" withString:@"/"]; // its seriously evil
 
     if ([csrfToken isEqual:[digestData stringByBase64Encoding]]) {
-        OFArray *items = [[OFArray alloc] initWithObjects:[[extractedParams objectForKey:@"name"] stringByXMLEscaping], [[extractedParams objectForKey:@"message"] stringByXMLEscaping], nil];
+        OFArray *items = [[OFArray alloc] initWithObjects:[extractedParams objectForKey:@"name"], [extractedParams objectForKey:@"message"], nil];
         SL3PreparedStatement *dbSubmitStatement = [self->dbConn prepareStatement:@"INSERT INTO entries (name, message) VALUES ($name, $message)"];
         [dbSubmitStatement bindWithArray:items];
         [dbSubmitStatement step];

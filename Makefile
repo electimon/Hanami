@@ -15,7 +15,7 @@ plugins:
 			echo "Building plugin: $$dir"; \
 			cd "$$dir"; \
 			make; \
-			mv *.dll ../../dist/plugins/ || mv *.so ../../dist/plugins/; \
+#			mv *.dll ../../dist/plugins/ || mv *.so ../../dist/plugins/; \
 			cd ../..; \
 		fi; \
 	done
