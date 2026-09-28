@@ -246,18 +246,28 @@ static OFMutableDictionary *staticVarMap;
 
 - (void)loadPlugins {
 	// the idea is init.d style, 01, 02, 03 is the order
-	// the worst code in this program by far, idk how to do it not like this i fear
-	// works with both windows and linux though..
 	for (OFIRI *file in [[[OFFileManager defaultManager] contentsOfDirectoryAtIRI:pluginsPath] sortedArrayUsingComparator:^OFComparisonResult(id  _Nonnull left, id  _Nonnull right){
         OFIRI *_left = left;
 		OFIRI *_right = right;
+		int leftHand, rightHand;
+@try {
 #ifdef OF_WINDOWS
-        if ([[[_left lastPathComponent] substringToIndex:2] intValue] < [[[_right lastPathComponent] substringToIndex:2] intValue])
+		leftHand = [[[_left lastPathComponent] substringToIndex:2] intValue];
+		rightHand = [[[_right lastPathComponent] substringToIndex:2] intValue];
 #else
-        if ([[[_left lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue] < [[[_right lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue])
+		leftHand = [[[_left lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue];
+		rightHand = [[[_right lastPathComponent] substringWithRange:OFMakeRange(3, 2)] intValue];
 #endif
-			return OFOrderedDescending;
+} @catch (OFInvalidFormatException *ex) {
+// seems that this plugin isn't using the expected filename, we will scream while trying our best
+		OFLog(@"Hanami: Could not compare plugins %@ and %@, are they labeled correctly? Trodding along...", _left, _right);
 		return OFOrderedAscending;
+}
+        if (leftHand < rightHand)
+			return OFOrderedDescending;
+		else if (leftHand > rightHand)
+			return OFOrderedAscending;
+		return OFOrderedSame;
 	} options:OFArraySortDescending]) {
 		id<HanamiPlugin> plug = [self loadPlugin:[file fileSystemRepresentation]];
 		if (plug)
@@ -266,14 +276,20 @@ static OFMutableDictionary *staticVarMap;
 }
 
 - (id<HanamiPlugin>)loadPlugin:(OFString *)plugin {
-	OFModule *mod = [OFModule moduleWithPath:plugin];
+	OFModule *mod;
+@try {
+	mod = [OFModule moduleWithPath:plugin];
+} @catch (OFException *) {
+	OFLog(@"Hanami: Failed to load plugin from path %@, trodding along...", plugin);
+	return nil;
+}
 	if (mod == nil)
 		return nil; // failed to load the plugin for some reason, for now we dont handle this case
 
 	Class (*getClass)(void) = (Class(*)(void))[mod addressForSymbol:@"HanamiPluginClass"];
 	if (getClass != NULL) {
 		Class cls = getClass();
-		OFLog(@"Got class: %@", cls);
+		OFLog(@"Hanami: Got plugin class: %@", cls);
 		id<HanamiPlugin> pluginObj = (id<HanamiPlugin>)[[cls alloc] init];
 		// keep the module (and its dlopen handle) alive as long as
 		// pluginObj exists, or its class metadata gets unmapped
