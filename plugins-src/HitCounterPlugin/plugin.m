@@ -1,5 +1,4 @@
 #import "../../srcs/HanamiPlugin.h"
-#include <ObjFW/OFMutableDictionary.h>
 #import "../../srcs/HanamiConfig.h"
 
 @interface HitCounterPlugin: OFObject <HanamiPlugin>

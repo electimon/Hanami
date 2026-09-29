@@ -44,12 +44,11 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 		[OFApplication terminateWithStatus:1];
 	}
 
-	OFArray *chunks = [[template componentsSeparatedByString:@"\n"] mutableCopy];
+	OFArray *chunks = [template componentsSeparatedByString:@"\n"];
 	OFMutableString *final = [[OFMutableString alloc] init];
 
 	for (OFString *chunk in chunks) {
-		const char *base = [chunk UTF8String];
-		const char *cursor = base;
+		const char *cursor = [chunk UTF8String];
 		OFMutableString *result = [OFMutableString string];
 
 		while (wrx_exec(compiledTransformationRegex, cursor, subm, compiledTransformationRegex->n_subm) == 1) {
@@ -59,7 +58,7 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 			int len = subm[0].end - subm[0].beg;
 			OFString *match = [OFString stringWithUTF8String:subm[0].beg length:len];
 			OFString *replacement = [varMap valueForKey:match];
-			[result appendString:(replacement ?: @"")];
+			[result appendString:(replacement ?: @"")]; // todo decide whether nothing is better than something
 
 			if (subm[0].end == subm[0].beg) {
 				if (*subm[0].end == '\0') break;
