@@ -1,5 +1,5 @@
 #import "Hanami.h"
-#import <MYArgParser.h>
+#import <Mayushii.h>
 #import "HanamiPluginResult.h"
 #import "HanamiUtils.h"
 #import "HanamiEntry.h"
@@ -226,14 +226,13 @@ static OFMutableDictionary *staticVarMap;
 		if (![[request.IRI.path pathExtension] isEqual:defaultFlavour]) {
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
 		}
-		// would do stringByReplacingString but if you have say aaaahtmlaaaa.html and we do it youll get aaaatxtaaaa.txt
-		OFIRI *iri = [HanamiUtils resolve:[[request.IRI.path stringByDeletingPathExtension] stringByAppendingPathExtension:defaultFileExtension] under:entriesPath];
+		OFIRI *iri = [HanamiUtils resolve:[request.IRI.path stringByReplacingPathExtension:defaultFileExtension] under:entriesPath];
 		if (iri == nil || ![[OFFileManager defaultManager] fileExistsAtIRI:iri]) {
 			if (iri != nil)
 				OFLog(@"No file found at: %@", iri);
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
 		}
-		iri = [[iri IRIByDeletingPathExtension] IRIByAppendingPathExtension:defaultFileExtension]; // todo change this to configurable option
+		iri = [iri IRIByReplacingPathExtension:defaultFileExtension];
 		HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:iri relativePath:[HanamiUtils relativePathFrom:entriesPath to:iri]];
 		if (entry)
 			[HanamiUtils wrapResponse:response withBody:[entry render:[HanamiUtils getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
