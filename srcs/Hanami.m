@@ -160,6 +160,9 @@ static OFMutableDictionary *staticVarMap;
 } @catch (OFException *ex) {
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap]; return;
 }
+			response.headers = @{
+				@"Content-Type": [MYMimeParser mimeTypeFor:[iri pathExtension]]
+			};
 			[response writeData:data]; return;
 		} else {
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
