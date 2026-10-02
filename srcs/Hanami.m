@@ -191,7 +191,7 @@ static OFMutableDictionary *staticVarMap;
 	HanamiRequestContext *reqCtx = [HanamiRequestContext contextFrom:request withRequestBody:requestBody response:response andVarMap:varMap];
 	int ret = 0;
 
-	HanamiTry([reqCtx validateRequest]);
+	HanamiTryAndRet([reqCtx validateRequest]);
 	HanamiTry([self transformMap:reqCtx.varMap response:reqCtx.response]);
 
 	OFLog(@"Hanami: Handling path: %@", reqCtx.request.IRI.path);

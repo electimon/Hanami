@@ -53,6 +53,8 @@
 @try {
 	pathComponents = [[_request IRI] pathComponents];
 	path = [[_request IRI] path].pathExtension;
+	(void)_request.IRI.path;
+	(void)_request.IRI.path.UTF8String; // BECAUSE YES THERES NO API TO DO THIS
 } @catch (OFException *ex) {
 	return HTTP_STATUS_400;
 }
