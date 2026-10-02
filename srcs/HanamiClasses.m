@@ -3,7 +3,7 @@
 
 @implementation HanamiRequestContext {
     BOOL isStaticFileRequest;
-    OFData *requestData;
+    OFData *storedRequestData;
 }
 
 - (void)setDefaults {
@@ -33,20 +33,20 @@
     return isStaticFileRequest;
 }
 
-- (nullable OFData *)requestDataGetter {
-    if (requestData != nil)
-        return requestData;
+- (nullable OFData *)requestData {
+    if (storedRequestData != nil)
+        return storedRequestData;
     if (_requestBody == nil)
         return nil;
 @try {
-    requestData = [_requestBody readDataUntilEndOfStream];
+    storedRequestData = [_requestBody readDataUntilEndOfStream];
 } @catch (OFException *ex) {
     return nil;
 }
-    return requestData;
+    return storedRequestData;
 }
 
-- (BOOL)validateRequest {
+- (int)validateRequest {
 	OFArray *pathComponents;
 	OFString *path;
 @try {

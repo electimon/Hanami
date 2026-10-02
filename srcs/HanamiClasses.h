@@ -6,12 +6,12 @@
 @protocol HanamiPluginRequestContextProtocol
 @property (nonatomic, strong) OFHTTPRequest *_Nonnull request;
 @property (nonatomic, strong) OFStream *_Nullable requestBody;
-@property (nonatomic, strong, getter=requestDataGetter) OFData *_Nullable requestData;
 @property (nonatomic, readonly, getter=isStaticFileRequestGetter) BOOL isStaticFileRequest;
 @property (nonatomic, strong) OFMutableDictionary *varMap;
 
 + (instancetype)contextFrom:(nonnull OFHTTPRequest *)request withRequestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response andVarMap:(nonnull OFMutableDictionary *)varMap;
-- (BOOL)validateRequest;
+- (int)validateRequest;
+- (nullable OFData *)requestData;
 - (void)setContentType:(nonnull OFString *)contentType;
 - (void)setStatusCode:(int)statusCode;
 - (void)setHeaders:(OFDictionary *)headers;
@@ -26,13 +26,13 @@
 @interface HanamiRequestContext : OFObject <HanamiRequestContextProtocol>
 @property (nonatomic, strong) OFHTTPRequest *_Nonnull request;
 @property (nonatomic, strong) OFStream *_Nullable requestBody;
-@property (nonatomic, strong, getter=requestDataGetter) OFData *_Nullable requestData;
 @property (nonatomic, strong) OFHTTPResponse *_Nonnull response;
 @property (nonatomic, readonly, getter=isStaticFileRequestGetter) BOOL isStaticFileRequest;
 @property (nonatomic, strong) OFMutableDictionary *varMap;
 
 + (instancetype)contextFrom:(nonnull OFHTTPRequest *)request withRequestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response andVarMap:(nonnull OFMutableDictionary *)varMap;
-- (BOOL)validateRequest;
+- (int)validateRequest;
+- (nullable OFData *)requestData;
 - (void)setContentType:(OFString *)contentType;
 - (void)setStatusCode:(int)statusCode;
 - (void)setHeaders:(OFDictionary *)headers;
