@@ -144,7 +144,7 @@ Class HanamiPluginClass(void) {
 
 - (HanamiPluginResult *)handleSubmitRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
     if (reqCtx.requestData == nil)
-        done(5);
+        done(6);
     OFString *postedString = [OFString stringWithData:reqCtx.requestData encoding:OFStringEncodingUTF8];
 
     OFDictionary *extractedParams = [self getParamsFrom:postedString];
@@ -153,7 +153,8 @@ Class HanamiPluginClass(void) {
     if ([extractedParams objectForKey:@"csrf_val"] == nil || [extractedParams objectForKey:@"csrf_token"] == nil || [extractedParams objectForKey:@"message"] == nil || [extractedParams objectForKey:@"name"] == nil)
         done(3);
 
-    if ([extractedParams objectForKey:@"website"] != nil)
+    OFString *websitePot = [extractedParams objectForKey:@"website"];
+    if (websitePot != nil && [websitePot length] > 0)
         // mmmm?
         done(5);
 

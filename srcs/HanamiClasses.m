@@ -40,9 +40,9 @@
     if (_requestBody == nil)
         return nil;
 @try {
-		requestData = [_requestBody readDataUntilEndOfStream];
+    requestData = [_requestBody readDataUntilEndOfStream];
 } @catch (OFException *ex) {
-		return nil;
+    return nil;
 }
     return requestData;
 }

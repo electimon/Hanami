@@ -29,7 +29,7 @@ OF_APPLICATION_DELEGATE(Hanami)
 #define HanamiTryContinue(x) if ((ret = x) != HANAMI_CONTINUE) { \
 	if (ret != HANAMI_SUCCESS) { \
 		[HanamiHTTPStatusHandler handleStatus:ret forRequest:reqCtx]; \
-	} \
+	} else { return; } \
 }
 
 #define HanamiTryAndRet(x) if ((ret = x) != 0) { \
