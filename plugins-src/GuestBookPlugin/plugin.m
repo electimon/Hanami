@@ -3,6 +3,9 @@
 #import "../../srcs/HanamiConfig.h"
 #import "../../srcs/HanamiTemplateDefaults.h"
 
+// im evil
+#import "../../srcs/HanamiPrivateConfig.h"
+
 #import <ObjSQLite3/ObjSQLite3.h>
 
 #define DEFAULT_CSRF_SECRET @"WiththefallofGeneonUSAsDVDsalesdepartment"
@@ -33,7 +36,7 @@ Class HanamiPluginClass(void) {
 - (instancetype)init {
     self = [super init];
     @try {
-        self->dbConn = [[SL3Connection alloc] initWithIRI:[OFIRI fileIRIWithPath:@"state/guestbook.db"]];
+        self->dbConn = [[SL3Connection alloc] initWithIRI:[statePath IRIByAppendingPathComponent:@"guestbook.db"]];
     } @catch (SL3OpenFailedException *ex) {
         OFLog(@"GuestBookPlugin: Failed to open db at state/guestbook.db");
         return nil;
@@ -118,7 +121,7 @@ Class HanamiPluginClass(void) {
         </ul> \
     ", time, [digestData stringByBase64Encoding], htmlEntries];
     [varMap setValue:@"guestbook" forKey:@"$fn"];
-    return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:HTMLContentType title:@"Guestbook" andBody:body];
+    return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:(OFString *)HTMLContentType title:@"Guestbook" andBody:body];
 }
 
 - (OFDictionary *)getParamsFrom:(OFString *)requestString {
@@ -147,6 +150,10 @@ Class HanamiPluginClass(void) {
         done(2);
     if ([extractedParams objectForKey:@"csrf_val"] == nil || [extractedParams objectForKey:@"csrf_token"] == nil || [extractedParams objectForKey:@"message"] == nil || [extractedParams objectForKey:@"name"] == nil)
         done(3);
+
+    if ([extractedParams objectForKey:@"website"] != nil)
+        // mmmm?
+        done(5);
 
     OFHMAC *hmacObj = [[OFHMAC alloc] initWithHashClass:[OFSHA256Hash class] allowsSwappableMemory:YES];
     [hmacObj setKey:[self->csrfSecret cStringWithEncoding:OFStringEncodingUTF8] length:[self->csrfSecret cStringLengthWithEncoding:OFStringEncodingUTF8]];

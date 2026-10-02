@@ -58,11 +58,14 @@
 	OFMutableArray *out = [[OFMutableArray alloc] init];
 	OFArray *contents = [[OFFileManager defaultManager] contentsOfDirectoryAtIRI:iri];
 	for (OFIRI *entryIRI in contents)
-		if ([[OFFileManager defaultManager] directoryExistsAtIRI:entryIRI])
+	    if ([[OFFileManager defaultManager] directoryExistsAtIRI:entryIRI])
 			[out addObjectsFromArray:[self getEntriesAtIRI:entryIRI]];
-		else if ([excluded containsObject:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]])
+        else if ([excluded containsObject:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]])
 			continue;
-		else {
+		else if (![[entryIRI pathExtension] isEqual:defaultFileExtension]) {
+            OFLog(@"Hanami: Skipping file %@, because of expected extension mismatch", [entryIRI fileSystemRepresentation]);
+	        continue;
+		} else {
 			HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:entryIRI relativePath:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]];
 			if (entry)
 				[out addObject:entry];

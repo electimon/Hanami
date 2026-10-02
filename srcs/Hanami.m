@@ -16,7 +16,7 @@ OF_APPLICATION_DELEGATE(Hanami)
 @implementation Hanami {
 	OFHTTPServer *_server;
 	OFMutableArray *_plugins;
-	OFMutableArray *_pluginModules; // keeps HanamiModule (and thus dlopen handle) alive
+	OFMutableArray *_pluginModules; // keeps OFModules (and thus dlopen handle) alive
 }
 
 #pragma mark - Constants
@@ -73,7 +73,7 @@ static OFMutableDictionary *staticVarMap;
 	staticVarMap[@"$content_type"] = HTMLContentType;
 	staticVarMap[@"$blog_title"] = [config valueForKey:@"blog_title" defaultValue:@"My Weblog!"];
 	staticVarMap[@"$blog_description"] = [config valueForKey:@"blog_description" defaultValue:@"rwar"];
-	staticVarMap[@"$url"] = [OFString stringWithFormat:@"http://%@:%d", _host, _port];
+	staticVarMap[@"$url"] = [config valueForKey:@"url" defaultValue:[OFString stringWithFormat:@"http://%@:%d", _host, _port]];
 
 	_server = [[OFHTTPServer alloc] init];
 	_server.host = _host;
@@ -87,10 +87,9 @@ static OFMutableDictionary *staticVarMap;
 
 - (BOOL)validateRequest:(OFHTTPRequest *)request varMap:(OFMutableDictionary *)varMap response:(nonnull OFHTTPResponse *)response {
 	OFArray *pathComponents;
-	OFString *path;
 @try {
 	pathComponents = [[request IRI] pathComponents];
-	path = [[request IRI] path].pathExtension;
+	(void)[[request IRI] path].pathExtension;
 } @catch (OFException *ex) {
 	return NO;
 }

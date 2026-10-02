@@ -65,10 +65,10 @@ Class HanamiPluginClass(void) {
     return [OFString stringWithFormat:@"<a href=\"%@\">%@ by %@</a><br><small>Playing now as we speak!</small>", url, title, artist];
 }
 
-- (void)client:(nonnull OFHTTPClient *)client didPerformRequest:(nonnull OFHTTPRequest *)request response:(nullable OFHTTPResponse *)response exception:(nullable id)exception {
+- (void)client:(nonnull OFHTTPClient *)remoteClient didPerformRequest:(nonnull OFHTTPRequest *)request response:(nullable OFHTTPResponse *)response exception:(nullable id)exception {
     if (exception != nil) {
         OFLog(@"LastFMPlugin: Got exception: %@", exception);
-        [client close];
+        [remoteClient close];
     } else
         [self fillCache:response];
 }

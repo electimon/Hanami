@@ -5,7 +5,7 @@ VERSION = 0.1
 all: $(PROG) plugins
 
 $(PROG): $(SRCS)
-	objfw-compile -Wl,--export-dynamic --arc -g -L /usr/local/lib -lmayushii -I /usr/local/include/mayushii -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
+	objfw-compile -Wno-nullability-completeness -Wl,--export-dynamic --arc -g -L /usr/local/lib -lmayushii -I /usr/local/include/mayushii -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
 
 plugins:
 	@echo "Building plugins..."
