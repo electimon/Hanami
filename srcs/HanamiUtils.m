@@ -119,10 +119,10 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 	}
 }
 
-+ (void)wrapResponse:(OFHTTPResponse *)response withBody:(OFString *)story andVarMap:(OFMutableDictionary *)varMap {
-	[response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_HEAD] varMap:varMap]];
-    [response writeString:story];
-	[response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_FOOT] varMap:varMap]];
++ (void)wrapContext:(HanamiRequestContext *)reqCtx withBody:(OFString *)story {
+	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_HEAD] varMap:reqCtx.varMap]];
+    [reqCtx.response writeString:story];
+	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_FOOT] varMap:reqCtx.varMap]];
 }
 
 @end

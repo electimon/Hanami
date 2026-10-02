@@ -1,4 +1,5 @@
 #import <ObjFW/ObjFW.h>
+#import "HanamiClasses.h"
 
 typedef enum {
 	HTTP_STATUS_400 = 400,	// RFC9110, Bad Request
@@ -14,5 +15,5 @@ typedef enum {
 } html_server_error_t;
 
 @interface HanamiHTTPStatusHandler : OFObject
-+ (void)handleStatus:(int)statusCode response:(OFHTTPResponse *)response andVarMap:(OFMutableDictionary *)varMap;
++ (void)handleStatus:(int)statusCode forRequest:(HanamiRequestContext *)reqCtx;
 @end
