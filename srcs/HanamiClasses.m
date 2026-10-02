@@ -9,10 +9,9 @@
 - (void)setDefaults {
 	// fill in some info that could be useful for widgets like request ip
 	[_varMap setValue:OFSocketAddressString(_request.remoteAddress) forKey:@"$request::address"];
-	[_varMap setValue:_request.IRI.path forKey:@"$request::path"];
     // we default to success because we're happy people around these parts
 	[self setStatusCode:200];
-    _response.headers = [[OFMutableDictionary alloc] init];
+	_response.headers = [[OFMutableDictionary alloc] init];
 	[self setContentType:[_varMap valueForKey:@"$content_type"]];
 }
 
@@ -55,6 +54,7 @@
 	path = [[_request IRI] path].pathExtension;
 	(void)_request.IRI.path;
 	(void)_request.IRI.path.UTF8String; // BECAUSE YES THERES NO API TO DO THIS
+	(void)path.UTF8String;
 } @catch (OFException *ex) {
 	return HTTP_STATUS_400;
 }
@@ -63,6 +63,9 @@
 		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
 			return HTTP_STATUS_400;
 		}
+
+	// move here instead of setDefaults because this needs to be validated xd
+	[_varMap setObject:_request.IRI.path forKey:@"$request::path"];
 
 	return HANAMI_SUCCESS;
 }
