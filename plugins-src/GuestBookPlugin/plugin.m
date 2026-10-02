@@ -54,12 +54,12 @@ Class HanamiPluginClass(void) {
 - (void)transformMap:(OFMutableDictionary *)varMap {
 }
 
-- (HanamiPluginResult *)handleDisplayRequest:(OFHTTPRequest *)request andVarMap:(OFMutableDictionary *)varMap {
+- (HanamiPluginResult *)handleDisplayRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
     OFMutableArray *entries = [[OFMutableArray alloc] init];
     OFString *previousSuccess = nil;
 
-    if (request.IRI.query != nil) {
-        OFDictionary *params = [self getParamsFrom:request.IRI.query];
+    if (reqCtx.request.IRI.query != nil) {
+        OFDictionary *params = [self getParamsFrom:reqCtx.request.IRI.query];
         previousSuccess = [params objectForKey:@"success"];
         // todo do something
     }
@@ -120,7 +120,7 @@ Class HanamiPluginClass(void) {
         %@ \
         </ul> \
     ", time, [digestData stringByBase64Encoding], htmlEntries];
-    [varMap setValue:@"guestbook" forKey:@"$fn"];
+    [reqCtx.varMap setValue:@"guestbook" forKey:@"$fn"];
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:(OFString *)HTMLContentType title:@"Guestbook" andBody:body];
 }
 
@@ -142,8 +142,10 @@ Class HanamiPluginClass(void) {
 #define done(num) \
     return [[HanamiPluginResult alloc] initWithStatusCode:303 headers:@{@"Location": [OFString stringWithFormat:@"/guestbook.html?success=%d", num]}];
 
-- (HanamiPluginResult *)handleSubmitRequest:(OFHTTPRequest *)request requestData:(OFData *)requestData andVarMap:(OFMutableDictionary *)varMap {
-    OFString *postedString = [OFString stringWithData:requestData encoding:OFStringEncodingUTF8];
+- (HanamiPluginResult *)handleSubmitRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
+    if (reqCtx.requestData == nil)
+        done(5);
+    OFString *postedString = [OFString stringWithData:reqCtx.requestData encoding:OFStringEncodingUTF8];
 
     OFDictionary *extractedParams = [self getParamsFrom:postedString];
     if (extractedParams == nil)
@@ -178,11 +180,11 @@ Class HanamiPluginClass(void) {
     done(0);
 }
 
-- (HanamiPluginResult *)handleRequest:(OFHTTPRequest *)request requestData:(nullable OFData *)requestData andVarMap:(OFMutableDictionary *)varMap {
-    if ([request.IRI.path isEqual:@"/guestbook.html"])
-        return [self handleDisplayRequest:request andVarMap:varMap];
-    if ([request.IRI.path isEqual:@"/guestbook.submit"] && requestData != nil)
-        return [self handleSubmitRequest:request requestData:(OFData *)requestData andVarMap:varMap];
+- (HanamiPluginResult *)handleRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
+    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.html"])
+        return [self handleDisplayRequest:reqCtx];
+    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.submit"])
+        return [self handleSubmitRequest:reqCtx];
     return nil;
 }
 

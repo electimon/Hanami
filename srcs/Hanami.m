@@ -1,5 +1,6 @@
 #import "Hanami.h"
 #import <Mayushii.h>
+#import "HanamiClasses.h"
 #import "HanamiPluginResult.h"
 #import "HanamiUtils.h"
 #import "HanamiEntry.h"
@@ -17,6 +18,23 @@ OF_APPLICATION_DELEGATE(Hanami)
 	OFHTTPServer *_server;
 	OFMutableArray *_plugins;
 	OFMutableArray *_pluginModules; // keeps OFModules (and thus dlopen handle) alive
+}
+
+#pragma mark - Macros
+
+#define HanamiTry(x) if ((ret = x) != 0) { \
+	[HanamiHTTPStatusHandler handleStatus:ret forRequest:reqCtx]; \
+}
+
+#define HanamiTryContinue(x) if ((ret = x) != HANAMI_CONTINUE) { \
+	if (ret != HANAMI_SUCCESS) { \
+		[HanamiHTTPStatusHandler handleStatus:ret forRequest:reqCtx]; \
+	} \
+}
+
+#define HanamiTryAndRet(x) if ((ret = x) != 0) { \
+	[HanamiHTTPStatusHandler handleStatus:ret forRequest:reqCtx]; \
+	return; \
 }
 
 #pragma mark - Constants
@@ -85,161 +103,139 @@ static OFMutableDictionary *staticVarMap;
 
 #pragma mark - Delegate Methods
 
-- (BOOL)validateRequest:(OFHTTPRequest *)request varMap:(OFMutableDictionary *)varMap response:(nonnull OFHTTPResponse *)response {
-	OFArray *pathComponents;
-@try {
-	pathComponents = [[request IRI] pathComponents];
-	(void)[[request IRI] path].pathExtension;
-} @catch (OFException *ex) {
-	return NO;
-}
-
-	for (OFString *comp in pathComponents)
-		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap];
-			return NO; // should be bail
-		}
-
-	return YES;
-}
-
-- (BOOL)isRequestStaticFile:(OFHTTPRequest *)request {
-	OFArray *pathComponents = [[request IRI] pathComponents];
-	if ([pathComponents count] > 1 && [[pathComponents objectAtIndex:1] isEqual:@"static"]) return YES; else return NO;
-}
-
-- (void)server:(nonnull OFHTTPServer *)server didReceiveRequest:(nonnull OFHTTPRequest *)request requestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response {
-	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
-	OFData *requestData;
-
-	if (![self validateRequest:request varMap:varMap response:response])
-		return;
-
-	OFArray *pathComponents = [[request IRI] pathComponents];
-
-	response.statusCode = 200;
-	response.headers = @{
-		@"Content-Type": [varMap valueForKey:@"$content_type"]
-	};
-
-	if (requestBody != nil && ![self isRequestStaticFile:request]) { // static file gets shouldnt have us parsing their shit
-@try {
-		requestData = [requestBody readDataUntilEndOfStream];
-} @catch (OFException *ex) {
-		[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap]; return;
-}
-	}
-
-	// fill in some info that could be useful for widgets like request ip
-	[varMap setValue:OFSocketAddressString(request.remoteAddress) forKey:@"$request::address"];
-	[varMap setValue:request.IRI.path forKey:@"$request::path"];
-
-	OFLog(@"Hanami: Registered Plugins: %@", _plugins);
-
+- (int)transformMap:(OFMutableDictionary *)varMap response:(OFHTTPResponse *)response {
 	for (id<HanamiPlugin> plugin in _plugins) {
 		OFLog(@"Hanami: Calling %@ to transform map", plugin);
+		if (![plugin respondsToSelector:@selector(transformMap:)])
+			continue; // meep, our plugin doesnt respond to this
 @try {
 		[plugin transformMap:varMap];
 } @catch (OFException *ex) {
 		OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
 		if (![[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue]) {
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_500 response:response andVarMap:varMap]; return;
+			return HTTP_STATUS_500;
 		}
 		OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
 }
 	}
-
-	if ([self isRequestStaticFile:request]) {
-		OFString *rel = [[pathComponents objectsInRange:OFMakeRange(2, pathComponents.count - 2)] componentsJoinedByString:@"/"];
-		OFIRI *iri = [HanamiUtils resolve:rel under:staticPath];
-		if (iri != nil && [[OFFileManager defaultManager] fileExistsAtIRI:iri]) {
-			OFData *data;
-@try {
-			data = [OFData dataWithContentsOfIRI:iri];
-} @catch (OFException *ex) {
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_400 response:response andVarMap:varMap]; return;
+	return HANAMI_SUCCESS;
 }
-			response.headers = @{
-				@"Content-Type": [MYMimeParser mimeTypeFor:[iri pathExtension]]
-			};
-			[response writeData:data]; return;
-		} else {
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
-		}
-	}
 
+- (int)tryHandleStaticFileRequest:(HanamiRequestContext *)reqCtx {
+	OFArray *pathComponents = [[reqCtx.request IRI] pathComponents];
+	OFString *rel = [[pathComponents objectsInRange:OFMakeRange(2, pathComponents.count - 2)] componentsJoinedByString:@"/"];
+	OFIRI *iri = [HanamiUtils resolve:rel under:staticPath];
+	if (iri != nil && [[OFFileManager defaultManager] fileExistsAtIRI:iri]) {
+		OFData *data;
+@try {
+		data = [OFData dataWithContentsOfIRI:iri];
+} @catch (OFException *ex) {
+		return HTTP_STATUS_400;
+}
+		reqCtx.response.headers = @{
+			@"Content-Type": [MYMimeParser mimeTypeFor:[iri pathExtension]]
+		};
+		[reqCtx.response writeData:data];
+		return HANAMI_SUCCESS;
+	}
+	return HTTP_STATUS_404;
+}
+
+- (int)tryHandlePluginRoute:(HanamiRequestContext *)reqCtx {
 	for (id<HanamiPlugin> plugin in _plugins) {
-		if (![plugin respondsToSelector:@selector(handleRequest:requestData:andVarMap:)])
+		if ([plugin respondsToSelector:@selector(handleRequest:)] == NO) {
+			OFLog(@"Hanami: Plugin %@ cannot handle this route", plugin);
 			continue; // meep, our plugin doesnt respond to this
+		}
 		OFLog(@"Hanami: Calling %@ to handle request", plugin);
 		HanamiPluginResult *plugResult;
 @try {
-			plugResult = [plugin handleRequest:request requestData:requestData andVarMap:varMap];
+			plugResult = [plugin handleRequest:reqCtx];
 } @catch (OFException *ex) {
 			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
 			if (![[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue]) {
-				[varMap setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
-				[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_500 response:response andVarMap:varMap]; return;
+				[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
+				return HTTP_STATUS_500;
 			}
 			OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
 }
 		if (plugResult != nil && [plugResult isKindOfClass:[HanamiPluginResult class]]) {
 			// we've got a handled request ^_^
 			OFLog(@"Hanami: Handling with %@", plugin);
-			response.statusCode = plugResult.statusCode;
-			response.headers = plugResult.headers;
+			[reqCtx setStatusCode:plugResult.statusCode];
+			[reqCtx setHeaders:plugResult.headers];
 			// by now the plugin should written either $raw or $body, we check $raw first to handle "static" files
 @try {
-			if ([varMap objectForKey:@"$raw"]) {
-				if ([[varMap objectForKey:@"$raw"] isKindOfClass:[OFData class]])
-					[response writeData:[varMap objectForKey:@"$raw"]];
-				else if ([[varMap objectForKey:@"$raw"] isKindOfClass:[OFString class]])
-					[response writeString:[varMap objectForKey:@"$raw"]];
+			if ([reqCtx objectForKey:@"$raw"] != nil) {
+				if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFData class]])
+					[reqCtx.response writeData:[reqCtx objectForKey:@"$raw"]];
+				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFString class]])
+					[reqCtx.response writeString:[reqCtx objectForKey:@"$raw"]];
 				else
-					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", plugin, [[varMap objectForKey:@"$raw"] class]);
+					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", plugin, [[reqCtx objectForKey:@"$raw"] class]);
 			} else
-				[HanamiUtils wrapResponse:response withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
-			return;
-}
-@catch (OFException *ex) {
+				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
+} @catch (OFException *ex) {
 			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
-			[varMap setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_500 response:response andVarMap:varMap]; return;
+			[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
+			return HTTP_STATUS_500;
 }
+			return HANAMI_SUCCESS;
 		}
 	}
+	return HANAMI_CONTINUE;
+}
+
+- (void)server:(nonnull OFHTTPServer *)server didReceiveRequest:(nonnull OFHTTPRequest *)request requestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response {
+	OFMutableDictionary *varMap = [[OFMutableDictionary alloc] initWithDictionary:staticVarMap];
+	HanamiRequestContext *reqCtx = [HanamiRequestContext contextFrom:request withRequestBody:requestBody response:response andVarMap:varMap];
+	int ret = 0;
+
+	HanamiTry([reqCtx validateRequest]);
+	HanamiTry([self transformMap:reqCtx.varMap response:reqCtx.response]);
+
+	OFLog(@"Hanami: Handling path: %@", reqCtx.request.IRI.path);
+	OFLog(@"Hanami: Registered Plugins: %@", _plugins);
+
+	if (reqCtx.isStaticFileRequest) {
+		HanamiTryAndRet([self tryHandleStaticFileRequest:reqCtx]);
+	}
+	HanamiTryContinue([self tryHandlePluginRoute:reqCtx]);
 
 	// this case handles the root page where all posts are shown
-	if ([request.IRI.path isEqual:@"/"]) {
-		[response writeString:[HanamiTemplateHandler renderEntryListAtIRI:entriesPath varMap:varMap]];
+	if ([reqCtx.request.IRI.path isEqual:@"/"]) {
+		[reqCtx.response writeString:[HanamiTemplateHandler renderEntryListAtIRI:entriesPath varMap:reqCtx.varMap]];
 		return;
 	// this case handles subfolders/categories
-	} else if ([[request.IRI.path pathExtension] length] < 1) {
-		OFIRI *iri = [HanamiUtils resolve:request.IRI.path under:entriesPath];
+	} else if ([[reqCtx.request.IRI.path pathExtension] length] < 1) {
+		OFIRI *iri = [HanamiUtils resolve:reqCtx.request.IRI.path under:entriesPath];
 		if (iri == nil || ![[OFFileManager defaultManager] directoryExistsAtIRI:iri]) {
 			OFLog(@"IRI does not exist: %@", iri);
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
+			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 forRequest:reqCtx];
+			return;
 		}
-		[response writeString:[HanamiTemplateHandler renderEntryListAtIRI:iri varMap:varMap]];
+		[reqCtx.response writeString:[HanamiTemplateHandler renderEntryListAtIRI:iri varMap:reqCtx.varMap]];
 		return;
 	// this case handles direct entry permalinks
 	} else {
-		OFLog(@"Handling entry: %@", request.IRI.path);
-		if (![[request.IRI.path pathExtension] isEqual:defaultFlavour]) {
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
+		OFLog(@"Handling entry: %@", reqCtx.request.IRI.path);
+		if (![[reqCtx.request.IRI.path pathExtension] isEqual:defaultFlavour]) {
+			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 forRequest:reqCtx];
+			return;
 		}
-		OFIRI *iri = [HanamiUtils resolve:[request.IRI.path stringByReplacingPathExtension:defaultFileExtension] under:entriesPath];
+		OFIRI *iri = [HanamiUtils resolve:[reqCtx.request.IRI.path stringByReplacingPathExtension:defaultFileExtension] under:entriesPath];
 		if (iri == nil || ![[OFFileManager defaultManager] fileExistsAtIRI:iri]) {
 			if (iri != nil)
 				OFLog(@"No file found at: %@", iri);
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap]; return;
+			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 forRequest:reqCtx];
+			return;
 		}
 		iri = [iri IRIByReplacingPathExtension:defaultFileExtension];
 		HanamiEntry *entry = [[HanamiEntry alloc] initWithIRI:iri relativePath:[HanamiUtils relativePathFrom:entriesPath to:iri]];
 		if (entry)
-			[HanamiUtils wrapResponse:response withBody:[entry render:[HanamiUtils getTemplate:HTML_STORY] varMap:varMap] andVarMap:varMap];
+			[HanamiUtils wrapContext:reqCtx withBody:[entry render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
 		else
-			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 response:response andVarMap:varMap];
+			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 forRequest:reqCtx];
 	}
 }
 
@@ -264,7 +260,7 @@ static OFMutableDictionary *staticVarMap;
 		OFLog(@"Hanami: Could not compare plugins %@ and %@, are they labeled correctly? Trodding along...", _left, _right);
 		return OFOrderedAscending;
 }
-        if (leftHand < rightHand)
+		if (leftHand < rightHand)
 			return OFOrderedDescending;
 		else if (leftHand > rightHand)
 			return OFOrderedAscending;

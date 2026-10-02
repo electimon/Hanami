@@ -9,16 +9,20 @@
     return [HanamiUtils getTemplateAtIRI:[entriesPath IRIByAppendingPathComponent:[OFString stringWithFormat:@"%d.%@", statusCode, defaultFileExtension]] defaultValue:[HTMLStatus copy]];
 }
 
-+ (void)handleStatus:(int)statusCode response:(OFHTTPResponse *)response andVarMap:(OFMutableDictionary *)varMap {
-    [varMap setValue:[OFString stringWithFormat:@"%d", statusCode] forKey:@"$status_code"];
-    if ([varMap valueForKey:@"$int_error"])
-        [varMap setValue:[varMap valueForKey:@"$int_error"] forKey:@"$error"];
++ (void)handleStatus:(int)statusCode forRequest:(HanamiRequestContext *)reqCtx {
+    [reqCtx setObject:[OFString stringWithFormat:@"%d", statusCode] forKey:@"$status_code"];
+    if ([reqCtx objectForKey:@"$int_error"])
+        [reqCtx setObject:[reqCtx objectForKey:@"$int_error"] forKey:@"$error"];
     else
-        [varMap setValue:OFHTTPStatusCodeString(statusCode) forKey:@"$error"];
-    response.statusCode = statusCode;
+        [reqCtx setObject:OFHTTPStatusCodeString(statusCode) forKey:@"$error"];
+    [reqCtx setStatusCode:statusCode];
+@try {
 	if ([[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"wrap_status_pages" defaultValue:@"1"] intValue])
-		[HanamiUtils wrapResponse:response withBody:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:varMap] andVarMap:varMap];
+		[HanamiUtils wrapContext:reqCtx withBody:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
 	else
-    	[response writeString:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:varMap]];
+    	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
+} @catch (OFWriteFailedException *ex) {
+    OFLog(@"Hanami: Lost TCP response pipe");
+}
 }
 @end
