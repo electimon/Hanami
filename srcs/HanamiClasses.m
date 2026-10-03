@@ -28,8 +28,8 @@
 - (BOOL)isStaticFileRequestGetter {
     if (isStaticFileRequest)
         return isStaticFileRequest;
-	OFArray *pathComponents = [[_request IRI] pathComponents];
-	isStaticFileRequest = ([pathComponents count] > 1 && [[pathComponents objectAtIndex:1] isEqual:@"static"]);
+    OFArray *pathComponents = [[_request IRI] pathComponents];
+    isStaticFileRequest = ([pathComponents count] > 1 && [[pathComponents objectAtIndex:1] isEqual:@"static"]);
     return isStaticFileRequest;
 }
 
@@ -48,16 +48,18 @@
 
 - (int)validateRequest {
 	OFArray *pathComponents;
-	OFString *path;
+    OFString *path;
 @try {
-	pathComponents = [[_request IRI] pathComponents];
-	path = [[_request IRI] path].pathExtension;
-	(void)_request.IRI.path;
-	(void)_request.IRI.path.UTF8String; // BECAUSE YES THERES NO API TO DO THIS
-	(void)path.UTF8String;
+	path = _request.IRI.path;
 } @catch (OFException *ex) {
-	return HTTP_STATUS_400;
+    return HTTP_STATUS_400;
 }
+	OFRange rangeOfChars = [path rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
+	if (rangeOfChars.location != OFNotFound)
+        return HTTP_STATUS_400;
+    rangeOfChars = [path rangeOfCharacterFromSet:[OFCharacterSet IRIPathAllowedCharacterSet]];
+	if (rangeOfChars.location != OFNotFound)
+        return HTTP_STATUS_400;
 
 	for (OFString *comp in pathComponents)
 		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
