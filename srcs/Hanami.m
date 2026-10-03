@@ -45,13 +45,13 @@ static OFMutableDictionary *staticVarMap;
 
 - (OFArray<MYArgOption *> *)getOptions {
 	return @[
-		[MYArgOption optionWithLongForm:@"--config" shortForm:@"-c" valueType:[OFString class] withImplictValue:@""]
+		[MYArgOption optionWithLongForm:@"--base-path" shortForm:@"-b" valueType:[OFString class] withImplictValue:@""]
 	];
 }
 
-- (OFString *)parseConfigPathFromArgs:(OFArray *)args {
+- (OFString *)parseBasePathFromArgs:(OFArray *)args {
 	if (args.count <= 0) {
-		OFLog(@"Hanami: Please specify base config path with -c or --config, even if it's just $PWD or ./");
+		OFLog(@"Hanami: Please specify base config path with -b or --base-path, even if it's just $PWD or ./");
 		[OFApplication terminateWithStatus:1];
 	}
 	MYArgParser *parser = [MYArgParser parserWithOptions:[self getOptions]];
@@ -68,6 +68,9 @@ static OFMutableDictionary *staticVarMap;
 	// create state dir
 	[HanamiFileManager createDirectoryAndParents:statePath];
 
+	// create plugin supporting files path
+	[HanamiFileManager createDirectoryAndParents:pluginsSupportPath];
+
 	[self loadPlugins];
 
 	// Entries
@@ -77,35 +80,10 @@ static OFMutableDictionary *staticVarMap;
 	[HanamiFileManager createDirectoryAndParents:staticPath];
 }
 
-- (BOOL)validateTemplates {
-	OFString *headTemplate = [HanamiUtils getTemplate:HTML_HEAD];
-	OFString *storyTemplate = [HanamiUtils getTemplate:HTML_STORY];
-	OFString *footerTemplate = [HanamiUtils getTemplate:HTML_FOOT];
-	OFRange range = [headTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
-	if (range.location != OFNotFound) {
-		OFLog(@"Hanami: The head template is not valid, a control character was found!");
-		return NO;
-	}
-	range = [storyTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
-	if (range.location != OFNotFound) {
-		OFLog(@"Hanami: The story template is not valid, a control character was found!");
-		return NO;
-	}
-	range = [footerTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
-	if (range.location != OFNotFound) {
-		OFLog(@"Hanami: The foot template is not valid, a control character was found!");
-		return NO;
-	}
-	return YES;
-}
-
 - (void)applicationDidFinishLaunching: (OFNotification *)notification {
-	[HanamiConfig setConfigBasePath:[self parseConfigPathFromArgs:[[OFApplication sharedApplication] arguments]]];
+	[HanamiConfig setConfigBasePath:[self parseBasePathFromArgs:[[OFApplication sharedApplication] arguments]]];
 	HanamiConfig *config = [HanamiConfig instanceFor:@"hanami"];
 	[self bootstrapRuntimeRequirements:config];
-	BOOL validTemplates = [self validateTemplates];
-	if (validTemplates == NO)
-		[OFApplication terminateWithStatus:1];
 
 	// host n port
 	OFString *_host = [config valueForKey:@"host" defaultValue:@"127.0.0.1"];
@@ -222,10 +200,11 @@ static OFMutableDictionary *staticVarMap;
 	OFLog(@"Hanami: Handling path: %@", reqCtx.request.IRI.path);
 	OFLog(@"Hanami: Registered Plugins: %@", _plugins);
 
+	// give plugins a chance to handle /static routes
+	HanamiTryContinue([self tryHandlePluginRoute:reqCtx]);
 	if (reqCtx.isStaticFileRequest) {
 		HanamiTryAndRet([self tryHandleStaticFileRequest:reqCtx]);
 	}
-	HanamiTryContinue([self tryHandlePluginRoute:reqCtx]);
 
 	// this case handles the root page where all posts are shown
 	if ([reqCtx.request.IRI.path isEqual:@"/"]) {
