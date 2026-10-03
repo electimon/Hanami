@@ -179,9 +179,12 @@ static OFMutableDictionary *staticVarMap;
 					OFStream *stream = [reqCtx objectForKey:@"$raw"];
 					while (!stream.atEndOfStream) {
 						void *pool = objc_autoreleasePoolPush();
+@try {
 						OFData *data = [stream readDataWithCount:1024*64]; // shall i make this configurable? maybe
 						[reqCtx.response writeData:data];
+} @finally {
 						objc_autoreleasePoolPop(pool);
+}
 					}
 				} else
 					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", [plugin name], [[reqCtx objectForKey:@"$raw"] class]);
