@@ -175,7 +175,15 @@ static OFMutableDictionary *staticVarMap;
 					[reqCtx.response writeData:[reqCtx objectForKey:@"$raw"]];
 				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFString class]])
 					[reqCtx.response writeString:[reqCtx objectForKey:@"$raw"]];
-				else
+				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFStream class]]) {
+					OFStream *stream = [reqCtx objectForKey:@"$raw"];
+					while (!stream.atEndOfStream) {
+						void *pool = objc_autoreleasePoolPush();
+						OFData *data = [stream readDataWithCount:1024*64]; // shall i make this configurable? maybe
+						[reqCtx.response writeData:data];
+						objc_autoreleasePoolPop(pool);
+					}
+				} else
 					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", [plugin name], [[reqCtx objectForKey:@"$raw"] class]);
 			} else
 				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];

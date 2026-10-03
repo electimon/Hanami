@@ -91,7 +91,7 @@ Class HanamiPluginClass(void) {
 
     OFFileAttributes attributes = [[OFFileManager defaultManager] attributesOfItemAtIRI:path];
     if ([[attributes objectForKey:OFFileType] isEqual:OFFileTypeRegular]) {
-        [reqCtx setObject:[OFData dataWithContentsOfIRI:path] forKey:@"$raw"];
+        [reqCtx setObject:[OFFile fileWithPath:path.fileSystemRepresentation mode:@"r"] forKey:@"$raw"];
         return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:[MYMimeParser mimeTypeFor:[path pathExtension]]];
     }
 
