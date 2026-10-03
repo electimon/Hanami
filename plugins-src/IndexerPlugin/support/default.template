@@ -1,0 +1,61 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Index of $path</title>
+    <style type="text/css">
+        body {
+            max-width: 960px;
+            margin: 2em auto;
+            padding: 0 1em;
+            font-family: monospace;
+            line-height: 1.4;
+        }
+        h1 {
+            font-size: 1.4em;
+            margin-bottom: 1em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 0.25em 0.5em;
+            text-align: left;
+            white-space: nowrap;
+        }
+        th {
+            border-bottom: 1px solid;
+        }
+        td.name {
+            width: 100%;
+        }
+        a {
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            padding-top: 0.5em;
+            border-top: 1px solid;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+<h1>Index of $path</h1>
+<table summary="Directory listing">
+    <tr>
+        <th>Name</th>
+        <th>Last modified</th>
+        <th>Size</th>
+    </tr>
+    $index_entries
+</table>
+<div class="footer">
+    Hanami IndexerPlugin $version
+</div>
+</body>
+</html>

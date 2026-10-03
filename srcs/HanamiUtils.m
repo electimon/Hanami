@@ -1,7 +1,7 @@
 #import "HanamiUtils.h"
 #import "HanamiConfig.h"
 #import "HanamiTemplateHandler.h"
-#import "HanamiPrivateConfig.h"
+#import "HanamiDynamicConfig.h"
 
 #include "../wregex/wregex.h"
 

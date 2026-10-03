@@ -1,7 +1,7 @@
 #import "HanamiEntry.h"
 #import "HanamiUtils.h"
 #import "HanamiConfig.h"
-#import "HanamiPrivateConfig.h"
+#import "HanamiDynamicConfig.h"
 
 @implementation HanamiEntry
 

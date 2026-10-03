@@ -4,7 +4,7 @@
 #import "../../srcs/HanamiTemplateDefaults.h"
 
 // im evil
-#import "../../srcs/HanamiPrivateConfig.h"
+#import "../../srcs/HanamiDynamicConfig.h"
 
 #import <ObjSQLite3/ObjSQLite3.h>
 

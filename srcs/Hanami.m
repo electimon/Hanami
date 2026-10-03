@@ -9,7 +9,7 @@
 #import "HanamiFileManager.h"
 #import "HanamiHTTPStatusHandler.h"
 #import "HanamiTemplateHandler.h"
-#import "HanamiPrivateConfig.h"
+#import "HanamiDynamicConfig.h"
 #include <stdio.h>
 
 OF_APPLICATION_DELEGATE(Hanami)
@@ -29,6 +29,7 @@ OF_APPLICATION_DELEGATE(Hanami)
 #define HanamiTryContinue(x) if ((ret = x) != HANAMI_CONTINUE) { \
 	if (ret != HANAMI_SUCCESS) { \
 		[HanamiHTTPStatusHandler handleStatus:ret forRequest:reqCtx]; \
+		return; \
 	} else { return; } \
 }
 
@@ -147,24 +148,24 @@ static OFMutableDictionary *staticVarMap;
 - (int)tryHandlePluginRoute:(HanamiRequestContext *)reqCtx {
 	for (id<HanamiPlugin> plugin in _plugins) {
 		if ([plugin respondsToSelector:@selector(handleRequest:)] == NO) {
-			OFLog(@"Hanami: Plugin %@ cannot handle this route", plugin);
+			OFLog(@"Hanami: Plugin %@ cannot handle this route", [plugin name]);
 			continue; // meep, our plugin doesnt respond to this
 		}
-		OFLog(@"Hanami: Calling %@ to handle request", plugin);
+		OFLog(@"Hanami: Calling %@ to handle request", [plugin name]);
 		HanamiPluginResult *plugResult;
 @try {
 			plugResult = [plugin handleRequest:reqCtx];
 } @catch (OFException *ex) {
-			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", [plugin name], ex);
 			if (![[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue]) {
-				[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
+				[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
 				return HTTP_STATUS_500;
 			}
 			OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
 }
 		if (plugResult != nil && [plugResult isKindOfClass:[HanamiPluginResult class]]) {
 			// we've got a handled request ^_^
-			OFLog(@"Hanami: Handling with %@", plugin);
+			OFLog(@"Hanami: Handling with %@", [plugin name]);
 			[reqCtx setStatusCode:plugResult.statusCode];
 			[reqCtx setHeaders:plugResult.headers];
 			// by now the plugin should written either $raw or $body, we check $raw first to handle "static" files
@@ -175,12 +176,12 @@ static OFMutableDictionary *staticVarMap;
 				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFString class]])
 					[reqCtx.response writeString:[reqCtx objectForKey:@"$raw"]];
 				else
-					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", plugin, [[reqCtx objectForKey:@"$raw"] class]);
+					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", [plugin name], [[reqCtx objectForKey:@"$raw"] class]);
 			} else
 				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
 } @catch (OFException *ex) {
-			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
-			[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", plugin, ex] forKey:@"$int_error"];
+			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", [plugin name], ex);
+			[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
 			return HTTP_STATUS_500;
 }
 			return HANAMI_SUCCESS;
@@ -194,8 +195,8 @@ static OFMutableDictionary *staticVarMap;
 	HanamiRequestContext *reqCtx = [HanamiRequestContext contextFrom:request withRequestBody:requestBody response:response andVarMap:varMap];
 	int ret = 0;
 
-	HanamiTryAndRet([reqCtx validateRequest]);
 	HanamiTry([self transformMap:reqCtx.varMap response:reqCtx.response]);
+	HanamiTryAndRet([reqCtx validateRequest]);
 
 	OFLog(@"Hanami: Handling path: %@", reqCtx.request.IRI.path);
 	OFLog(@"Hanami: Registered Plugins: %@", _plugins);

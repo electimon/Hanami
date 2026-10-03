@@ -47,29 +47,30 @@
 }
 
 - (int)validateRequest {
-	OFArray *pathComponents;
+    OFArray *pathComponents;
     OFString *path;
 @try {
-	path = _request.IRI.path;
+    path = _request.IRI.path;
+    (void)_request.IRI.path.UTF8String;
 } @catch (OFException *ex) {
     return HTTP_STATUS_400;
 }
-	OFRange rangeOfChars = [path rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
-	if (rangeOfChars.location != OFNotFound)
-        return HTTP_STATUS_400;
-    rangeOfChars = [path rangeOfCharacterFromSet:[OFCharacterSet IRIPathAllowedCharacterSet]];
-	if (rangeOfChars.location != OFNotFound)
+    if ([path containsString:@"\\"])
         return HTTP_STATUS_400;
 
-	for (OFString *comp in pathComponents)
-		if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
-			return HTTP_STATUS_400;
-		}
+    OFRange rangeOfChars = [path rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
+    if (rangeOfChars.location != OFNotFound)
+        return HTTP_STATUS_400;
 
-	// move here instead of setDefaults because this needs to be validated xd
-	[_varMap setObject:_request.IRI.path forKey:@"$request::path"];
+    for (OFString *comp in pathComponents)
+        if ([comp isEqual:@".."] || [comp containsString:@"\\"]) {
+            return HTTP_STATUS_400;
+        }
 
-	return HANAMI_SUCCESS;
+    // move here instead of setDefaults because this needs to be validated xd
+    [_varMap setObject:_request.IRI.path forKey:@"$request::path"];
+
+    return HANAMI_SUCCESS;
 }
 
 - (void)setContentType:(OFString *)contentType {

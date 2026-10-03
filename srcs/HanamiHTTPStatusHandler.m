@@ -1,6 +1,6 @@
 #import "HanamiHTTPStatusHandler.h"
 #import "HanamiConfig.h"
-#import "HanamiPrivateConfig.h"
+#import "HanamiDynamicConfig.h"
 #import "HanamiUtils.h"
 
 @implementation HanamiHTTPStatusHandler

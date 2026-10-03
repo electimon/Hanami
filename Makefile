@@ -12,10 +12,15 @@ plugins:
 	@mkdir -p dist/plugins
 	@for dir in plugins-src/*; do \
 		if [ -d "$$dir" ]; then \
-			echo "Building plugin: $$dir"; \
+			name=$$(basename "$$dir"); \
+			echo "Building plugin: $$name"; \
 			cd "$$dir"; \
 			make; \
 			mv *.dll ../../dist/plugins/ || mv *.so ../../dist/plugins/; \
+			if [ -d "support" ]; then \
+				mkdir -p ../../dist/plugins-etc/"$$name"; \
+				cp support/* ../../dist/plugins-etc/"$$name/"; \
+			fi; \
 			cd ../..; \
 		fi; \
 	done
