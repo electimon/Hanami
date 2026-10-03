@@ -77,10 +77,35 @@ static OFMutableDictionary *staticVarMap;
 	[HanamiFileManager createDirectoryAndParents:staticPath];
 }
 
+- (BOOL)validateTemplates {
+	OFString *headTemplate = [HanamiUtils getTemplate:HTML_HEAD];
+	OFString *storyTemplate = [HanamiUtils getTemplate:HTML_STORY];
+	OFString *footerTemplate = [HanamiUtils getTemplate:HTML_FOOT];
+	OFRange range = [headTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
+	if (range.location != OFNotFound) {
+		OFLog(@"Hanami: The head template is not valid, a control character was found!");
+		return NO;
+	}
+	range = [storyTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
+	if (range.location != OFNotFound) {
+		OFLog(@"Hanami: The story template is not valid, a control character was found!");
+		return NO;
+	}
+	range = [footerTemplate rangeOfCharacterFromSet:[OFCharacterSet controlCharacterSet]];
+	if (range.location != OFNotFound) {
+		OFLog(@"Hanami: The foot template is not valid, a control character was found!");
+		return NO;
+	}
+	return YES;
+}
+
 - (void)applicationDidFinishLaunching: (OFNotification *)notification {
 	[HanamiConfig setConfigBasePath:[self parseConfigPathFromArgs:[[OFApplication sharedApplication] arguments]]];
 	HanamiConfig *config = [HanamiConfig instanceFor:@"hanami"];
 	[self bootstrapRuntimeRequirements:config];
+	BOOL validTemplates = [self validateTemplates];
+	if (validTemplates == NO)
+		[OFApplication terminateWithStatus:1];
 
 	// host n port
 	OFString *_host = [config valueForKey:@"host" defaultValue:@"127.0.0.1"];
