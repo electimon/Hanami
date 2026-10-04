@@ -2,10 +2,20 @@ PROG = Hanami
 SRCS = $(wildcard srcs/*.m) $(wildcard wregex/*.m)
 VERSION = 0.1
 
+IS_WINDOWS := false
+MACHINE_OS := $(shell clang -dumpmachine | cut -d'-' -f3)
+ifeq ($(MACHINE_OS),windows)
+IS_WINDOWS := true
+endif
+
 all: $(PROG) plugins
 
 $(PROG): $(SRCS)
+ifneq ($(IS_WINDOWS),true)
 	objfw-compile -Wno-nullability-completeness -Wl,--export-dynamic --arc -g -L /usr/local/lib -lmayushii -I /usr/local/include/mayushii -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
+else
+	objfw-compile -Wl,--export-all-symbols -Wl,--out-implib,srcs/hanami.dll.a -Wno-nullability-completeness --arc -g -L /usr/local/lib -lmayushii -I /usr/local/include/mayushii -I wregex -DVERSION=@\"$(VERSION)\" -o dist/$(PROG) $(SRCS)
+endif
 
 plugins:
 	@echo "Building plugins..."
@@ -45,6 +55,7 @@ gen_compiledb:
 
 clean:
 	@find . -name '*.o' -delete
+	@find . -name '*.a' -delete
 	@rm -f $(PROG)
 	@echo Done
 

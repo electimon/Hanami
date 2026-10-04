@@ -2,6 +2,12 @@
 #import "HanamiTemplateHandler.h"
 #import "HanamiClasses.h"
 
+#ifdef OF_WINDOWS
+    const static OFString *PATH_SEP = @"\\";
+#else
+    const static OFString *PATH_SEP = @"/";
+#endif
+
 static const char * const month[] = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 };

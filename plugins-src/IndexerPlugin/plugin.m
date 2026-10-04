@@ -33,9 +33,8 @@ Class HanamiPluginClass(void) {
 
     OFIRI *basePath = [HanamiConfig getConfigBasePath];
     OFIRI *standardPath = [basePath IRIByAppendingPathComponent:iri.path].IRIByStandardizingPath;
-    if (![[standardPath fileSystemRepresentation] hasPrefix:[OFString stringWithFormat:@"%@/", basePath.fileSystemRepresentation]])
+    if (![[standardPath fileSystemRepresentation] hasPrefix:[OFString stringWithFormat:@"%@%@", basePath.fileSystemRepresentation, PATH_SEP]])
         return nil;
-
     return standardPath;
 }
 
@@ -64,15 +63,17 @@ Class HanamiPluginClass(void) {
                            "</tr>"];
     for (OFIRI *file in filesList) {
         OFFileAttributes attributes = [[OFFileManager defaultManager] attributesOfItemAtIRI:file];
-        OFLog(@"rawSize = %@", [attributes objectForKey:OFFileSize]);
+        OFString *pathString = [file lastPathComponent];
+        if ([[attributes objectForKey:OFFileType] isEqual:OFFileTypeDirectory])
+            pathString = [pathString stringByAppendingString:@"/"];
         [ret appendString:[OFString stringWithFormat:
                             @"<tr>" \
-                            "<td class=\"name\"><a href=\"%@\">%@</a></td>" \
+                            "<td class=\"name\"><a href=\"./%@\">%@</a></td>" \
                             "<td>%@</td>" \
                             "<td>%@</td>" \
                            "</tr>", \
-            [file lastPathComponent],
-            [file lastPathComponent],
+            [pathString stringByAddingPercentEncodingWithAllowedCharacters:[OFCharacterSet IRIPathAllowedCharacterSet]],
+            [pathString stringByXMLEscaping],
             [[attributes objectForKey:OFFileModificationDate] localDateStringWithFormat:@"%Y-%m-%d"],
             [self getSizeString:[[attributes objectForKey:OFFileSize] unsignedLongLongValue]]
         ]];
@@ -89,19 +90,29 @@ Class HanamiPluginClass(void) {
     if ([[OFFileManager defaultManager] fileExistsAtIRI:path] == NO)
         return nil;
 
+    OFString *fsPath = path.fileSystemRepresentation;
+    OFRange range = [fsPath rangeOfString:[OFString stringWithFormat:@"%@pub", PATH_SEP]];
+#ifdef OF_WINDOWS
+    OFString *pathString = [[fsPath substringFromIndex:range.location] stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+#else
+    OFString *pathString = [fsPath substringFromIndex:range.location];
+#endif
+
     OFFileAttributes attributes = [[OFFileManager defaultManager] attributesOfItemAtIRI:path];
     if ([[attributes objectForKey:OFFileType] isEqual:OFFileTypeRegular]) {
         [reqCtx setObject:[OFFile fileWithPath:path.fileSystemRepresentation mode:@"r"] forKey:@"$raw"];
         return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:[MYMimeParser mimeTypeFor:[path pathExtension]]];
+    } else if ([[attributes objectForKey:OFFileType] isEqual:OFFileTypeDirectory]) {
+        if ([reqCtx.request.IRI.path hasSuffix:@"/"] == NO)
+            return [[HanamiPluginResult alloc] initWithStatusCode:301 headers:@{@"Location": [OFString stringWithFormat:@"%@/", pathString]}];
     }
 
-    OFString *fsPath = path.fileSystemRepresentation;
-    OFRange range = [fsPath rangeOfString:@"/pub"];
-    [reqCtx setObject:[fsPath substringFromIndex:range.location] forKey:@"$path"];
+    if ([[attributes objectForKey:OFFileType] isEqual:OFFileTypeDirectory])
+        pathString = [pathString stringByAppendingString:@"/"];
+    [reqCtx setObject:pathString forKey:@"$path"];
     [reqCtx setObject:[self buildListing:path] forKey:@"$index_entries"];
     [reqCtx setObject:[self version] forKey:@"$version"];
     [reqCtx setObject:[HanamiUtils transformTemplate:[HanamiUtils getTemplateAtIRI:[pluginsSupportPath IRIByAppendingPathComponent:@"IndexerPlugin/default.template"] defaultValue:@""] varMap:reqCtx.varMap] forKey:@"$raw"];
-
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:@"text/html"];
 }
 

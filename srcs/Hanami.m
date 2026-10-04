@@ -116,13 +116,12 @@ static OFMutableDictionary *staticVarMap;
 		[plugin transformMap:varMap];
 } @catch (OFException *ex) {
 		OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
-		if (![[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue]) {
+		if (tryContinueOnException.intValue == 0)
 			return HTTP_STATUS_500;
-		}
 		OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
 }
 	}
-	return HANAMI_SUCCESS;
+	return HANAMI_CONTINUE;
 }
 
 - (int)tryHandleStaticFileRequest:(HanamiRequestContext *)reqCtx {
@@ -157,7 +156,7 @@ static OFMutableDictionary *staticVarMap;
 			plugResult = [plugin handleRequest:reqCtx];
 } @catch (OFException *ex) {
 			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", [plugin name], ex);
-			if (![[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue]) {
+			if ([[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue] == 0) {
 				[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
 				return HTTP_STATUS_500;
 			}
@@ -177,21 +176,23 @@ static OFMutableDictionary *staticVarMap;
 					[reqCtx.response writeString:[reqCtx objectForKey:@"$raw"]];
 				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFStream class]]) {
 					OFStream *stream = [reqCtx objectForKey:@"$raw"];
-					while (!stream.atEndOfStream) {
-						void *pool = objc_autoreleasePoolPush();
+					size_t expected = 1024*64;
+					char *buffer = OFAllocMemory(1, expected);
 @try {
-						OFData *data = [stream readDataWithCount:1024*64]; // shall i make this configurable? maybe
-						[reqCtx.response writeData:data];
+					while (!stream.atEndOfStream)
+						[reqCtx.response writeBuffer:buffer length:[stream readIntoBuffer:buffer length:expected]];
 } @finally {
-						objc_autoreleasePoolPop(pool);
+					OFFreeMemory(buffer);
 }
-					}
 				} else
 					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", [plugin name], [[reqCtx objectForKey:@"$raw"] class]);
-			} else
-				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
+			} else if (plugResult.statusCode >= 300 && plugResult.statusCode < 400) { // redirection case
+				reqCtx.response.headers = plugResult.headers;
+				reqCtx.response.statusCode = plugResult.statusCode;
+				return HANAMI_SUCCESS;
+			} else [HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
 } @catch (OFException *ex) {
-			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", [plugin name], ex);
+			OFLog(@"Encountered Exception in plugin router!, plugin: %@, exception: %@", [plugin name], ex);
 			[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
 			return HTTP_STATUS_500;
 }
@@ -206,7 +207,7 @@ static OFMutableDictionary *staticVarMap;
 	HanamiRequestContext *reqCtx = [HanamiRequestContext contextFrom:request withRequestBody:requestBody response:response andVarMap:varMap];
 	int ret = 0;
 
-	HanamiTry([self transformMap:reqCtx.varMap response:reqCtx.response]);
+	HanamiTryContinue([self transformMap:reqCtx.varMap response:reqCtx.response]);
 	HanamiTryAndRet([reqCtx validateRequest]);
 
 	OFLog(@"Hanami: Handling path: %@", reqCtx.request.IRI.path);

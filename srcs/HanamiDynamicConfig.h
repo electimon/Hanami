@@ -7,5 +7,6 @@
 #define staticPath [HanamiFileManager IRIWithPath:[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"static_dir" defaultValue:@"static"]]
 #define statePath [HanamiFileManager IRIWithPath:[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"state_dir" defaultValue:@"state"]]
 #define pluginsSupportPath [HanamiFileManager IRIWithPath:[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"plugin_support_dir" defaultValue:@"plugins-etc"]]
-#define defaultFlavour [[HanamiConfig instanceFor:@"hanami"] valueForKey:@"default_flavour" defaultValue:@"html"]
 #define defaultFileExtension [[HanamiConfig instanceFor:@"hanami"] valueForKey:@"file_extension" defaultValue:@"txt"]
+#define defaultFlavour [[HanamiConfig instanceFor:@"hanami"] valueForKey:@"default_flavour" defaultValue:@"html"]
+#define tryContinueOnException [[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"]

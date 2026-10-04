@@ -11,6 +11,7 @@ static OFIRI *configBasePath = nil;
 
 + (void)setConfigBasePath:(OFString *)basePath {
     configBasePath = [OFIRI fileIRIWithPath:basePath];
+    [HanamiFileManager createDirectoryAndParents:[configBasePath IRIByAppendingPathComponent:@"configs"]];
 }
 
 + (OFIRI *)getConfigBasePath {
@@ -27,9 +28,9 @@ static OFIRI *configBasePath = nil;
         configInstance = [[HanamiConfig alloc] init];
         configInstance->configName = name;
         if (configBasePath != nil)
-            configInstance->iniFile = [OFINIFile fileWithIRI:[configBasePath IRIByAppendingPathComponent:[OFString stringWithFormat:@"configs/%@.ini", name]]];
+            configInstance->iniFile = [OFINIFile fileWithIRI:[[configBasePath IRIByAppendingPathComponent:@"configs"] IRIByAppendingPathComponent:[OFString stringWithFormat:@"%@.ini", name]]];
         else
-            configInstance->iniFile = [OFINIFile fileWithIRI:[OFIRI fileIRIWithPath:[OFString stringWithFormat:@"configs/%@.ini", name]]];
+            configInstance->iniFile = [OFINIFile fileWithIRI:[[OFIRI fileIRIWithPath:@"configs"] IRIByAppendingPathComponent:[OFString stringWithFormat:@"%@.ini", name]]];
         [instances setObject:configInstance forKey:name];
     }
     return configInstance;
