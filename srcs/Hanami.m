@@ -168,35 +168,14 @@ static OFMutableDictionary *staticVarMap;
 			[reqCtx setStatusCode:plugResult.statusCode];
 			[reqCtx setHeaders:plugResult.headers];
 			// by now the plugin should written either $raw or $body, we check $raw first to handle "static" files
-@try {
-			if ([reqCtx objectForKey:@"$raw"] != nil) {
-				if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFData class]])
-					[reqCtx.response writeData:[reqCtx objectForKey:@"$raw"]];
-				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFString class]])
-					[reqCtx.response writeString:[reqCtx objectForKey:@"$raw"]];
-				else if ([[reqCtx objectForKey:@"$raw"] isKindOfClass:[OFStream class]]) {
-					OFStream *stream = [reqCtx objectForKey:@"$raw"];
-					size_t expected = 1024*64;
-					char *buffer = OFAllocMemory(1, expected);
-@try {
-					while (!stream.atEndOfStream)
-						[reqCtx.response writeBuffer:buffer length:[stream readIntoBuffer:buffer length:expected]];
-} @finally {
-					OFFreeMemory(buffer);
-}
-				} else
-					OFLog(@"Hanami: Plugin %@ set $raw, but we don't know how to handle it! $raw: ", [plugin name], [[reqCtx objectForKey:@"$raw"] class]);
-			} else if (plugResult.statusCode >= 300 && plugResult.statusCode < 400) { // redirection case
+			if ([reqCtx objectForKey:@"$raw"] != nil)
+				return [HanamiUtils writeObject:[reqCtx objectForKey:@"$raw"] toResponse:reqCtx];
+			else if (plugResult.statusCode >= 300 && plugResult.statusCode < 400) { // redirection case
 				reqCtx.response.headers = plugResult.headers;
 				reqCtx.response.statusCode = plugResult.statusCode;
 				return HANAMI_SUCCESS;
-			} else [HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
-} @catch (OFException *ex) {
-			OFLog(@"Encountered Exception in plugin router!, plugin: %@, exception: %@", [plugin name], ex);
-			[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
-			return HTTP_STATUS_500;
-}
-			return HANAMI_SUCCESS;
+			} else
+				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
 		}
 	}
 	return HANAMI_CONTINUE;

@@ -1,4 +1,5 @@
 #import "HanamiUtils.h"
+#import "HanamiHTTPStatusHandler.h"
 #import "HanamiConfig.h"
 #import "HanamiTemplateHandler.h"
 #import "HanamiDynamicConfig.h"
@@ -123,6 +124,30 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_HEAD] varMap:reqCtx.varMap]];
     [reqCtx.response writeString:story];
 	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getTemplate:HTML_FOOT] varMap:reqCtx.varMap]];
+}
+
++ (int)writeObject:(id)object toResponse:(HanamiRequestContext *)reqCtx {
+@try {
+	if ([object isKindOfClass:[OFData class]])
+		[reqCtx.response writeData:object];
+	else if ([object isKindOfClass:[OFString class]])
+		[reqCtx.response writeString:object];
+	else if ([object isKindOfClass:[OFStream class]]) {
+		OFStream *stream = object;
+		size_t expected = 1024*64;
+		char *buffer = OFAllocMemory(1, expected);
+@try {
+		while (!stream.atEndOfStream)
+			[reqCtx.response writeBuffer:buffer length:[stream readIntoBuffer:buffer length:expected]];
+} @finally {
+		OFFreeMemory(buffer);
+}
+	} else OFLog(@"Hanami: Tried to write object of type %@ to response, but we don't know how to handle this type!", [object class]);
+} @catch (OFException *ex) {
+	OFLog(@"Hanami: Tried to write %@ to response but we couldnt'! %@", [object class], ex);
+	return HTTP_STATUS_500;
+}
+	return HANAMI_SUCCESS;
 }
 
 @end
