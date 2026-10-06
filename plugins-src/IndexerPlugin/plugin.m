@@ -1,7 +1,6 @@
 #import "../../srcs/HanamiPlugin.h"
 #import "../../srcs/HanamiPluginResult.h"
 #import "../../srcs/HanamiConfig.h"
-#import "../../srcs/HanamiDynamicConfig.h"
 #import "../../srcs/HanamiFileManager.h"
 #import "../../srcs/HanamiUtils.h"
 
@@ -112,7 +111,7 @@ Class HanamiPluginClass(void) {
     [reqCtx setObject:pathString forKey:@"$path"];
     [reqCtx setObject:[self buildListing:path] forKey:@"$index_entries"];
     [reqCtx setObject:[self version] forKey:@"$version"];
-    [reqCtx setObject:[HanamiUtils transformTemplate:[HanamiUtils getTemplateAtIRI:[pluginsSupportPath IRIByAppendingPathComponent:@"IndexerPlugin/default.template"] defaultValue:@""] varMap:reqCtx.varMap] forKey:@"$raw"];
+    [reqCtx setObject:[HanamiUtils transformTemplate:[HanamiUtils getSupportTemplate:@"default" for:[self name]] varMap:reqCtx.varMap] forKey:@"$raw"];
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:@"text/html"];
 }
 

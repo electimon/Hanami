@@ -2,9 +2,7 @@
 #import "../../srcs/HanamiPluginResult.h"
 #import "../../srcs/HanamiConfig.h"
 #import "../../srcs/HanamiTemplateDefaults.h"
-
-// im evil
-#import "../../srcs/HanamiDynamicConfig.h"
+#import "../../srcs/HanamiUtils.h"
 
 #import <ObjSQLite3/ObjSQLite3.h>
 
@@ -36,7 +34,7 @@ Class HanamiPluginClass(void) {
 - (instancetype)init {
     self = [super init];
     @try {
-        self->dbConn = [[SL3Connection alloc] initWithIRI:[statePath IRIByAppendingPathComponent:@"guestbook.db"]];
+        self->dbConn = [[SL3Connection alloc] initWithIRI:[[HanamiUtils getStateDirectory:[self name]] IRIByAppendingPathComponent:@"guestbook.db"]];
     } @catch (SL3OpenFailedException *ex) {
         OFLog(@"GuestBookPlugin: Failed to open db at state/guestbook.db");
         return nil;

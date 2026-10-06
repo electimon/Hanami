@@ -21,4 +21,6 @@ static const char * const month[] = {
 + (OFString *)getTemplate:(html_type_t)type;
 + (void)wrapContext:(HanamiRequestContext *)reqCtx withBody:(OFString *)story;
 + (int)writeObject:(id)object toResponse:(HanamiRequestContext *)reqCtx;
++ (OFString *)getSupportTemplate:(OFString *)name for:(OFString *)class;
++ (OFIRI *)getStateDirectory:(OFString *)forClass;
 @end
