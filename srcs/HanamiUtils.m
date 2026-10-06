@@ -149,14 +149,15 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 }
 	return HANAMI_SUCCESS;
 }
-//    [reqCtx setObject:[HanamiUtils transformTemplate:[HanamiUtils getTemplateAtIRI:[pluginsSupportPath IRIByAppendingPathComponent:@"IndexerPlugin/default.template"] defaultValue:@""] varMap:reqCtx.varMap] forKey:@"$raw"];
 
 + (OFString *)getSupportTemplate:(OFString *)name for:(OFString *)class {
 	return [HanamiUtils getTemplateAtIRI:[pluginsSupportPath IRIByAppendingPathComponent:[OFString stringWithFormat:@"%@/%@.template", class, name]] defaultValue:@""];
 }
 
 + (OFIRI *)getStateDirectory:(OFString *)forClass {
-	return [statePath IRIByAppendingPathComponent:forClass];
+	OFIRI *path = [statePath IRIByAppendingPathComponent:forClass];
+    [HanamiFileManager createDirectoryAndParents:path];
+	return path;
 }
 
 @end
