@@ -1,0 +1,23 @@
+<h1>Renn's Guestbook</h1>
+    <form method="post" action="/guestbook.submit">
+    <input type="hidden" name="csrf_val" value="$guestbook::csrf_val">
+    <input type="hidden" name="csrf_token" value="$guestbook::csrf_token">
+    <div>
+        <label for="name">Name:</label>
+        <br>
+        <input type="text" name="name" id="name" required>
+    </div>
+    <div>
+        <label for="message">Message:</label>
+        <br>
+        <input type="text" name="message" id="message" required>
+    </div>
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;">
+        <input type="text" name="website" tabindex="-1" autocomplete="off">
+    </div>
+    <input type="submit" value="Submit">
+</form>
+<h2>Entries:</h2>
+<ul>
+$guestbook::entries
+</ul>

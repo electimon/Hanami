@@ -36,7 +36,7 @@ Class HanamiPluginClass(void) {
     @try {
         self->dbConn = [[SL3Connection alloc] initWithIRI:[[HanamiUtils getStateDirectory:[self name]] IRIByAppendingPathComponent:@"guestbook.db"]];
     } @catch (SL3OpenFailedException *ex) {
-        OFLog(@"GuestBookPlugin: Failed to open db at state/guestbook.db");
+        OFLog(@"GuestBookPlugin: Failed to open db at %@", [[HanamiUtils getStateDirectory:[self name]] IRIByAppendingPathComponent:@"guestbook.db"].fileSystemRepresentation);
         return nil;
     }
     [self createTables];
@@ -93,32 +93,11 @@ Class HanamiPluginClass(void) {
 
     OFData *digestData = [OFData dataWithItemsNoCopy:(void *)hmacObj.digest count:32 freeWhenDone:NO];
 
-    OFString *body = [OFString stringWithFormat:@" \
-        <h1>Renn's Guestbook</h1> \
-            <form method=\"post\" action=\"/guestbook.submit\"> \
-            <input type=\"hidden\" name=\"csrf_val\" value=\"%@\"> \
-            <input type=\"hidden\" name=\"csrf_token\" value=\"%@\"> \
-            <div> \
-                <label for=\"name\">Name:</label> \
-                <br> \
-                <input type=\"text\" name=\"name\" id=\"name\" required> \
-            </div> \
-            <div> \
-                <label for=\"message\">Message:</label> \
-                <br> \
-                <input type=\"text\" name=\"message\" id=\"message\" required> \
-            </div> \
-            <div aria-hidden=\"true\" style=\"position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;\"> \
-                <input type=\"text\" name=\"website\" tabindex=\"-1\" autocomplete=\"off\"> \
-            </div> \
-            <input type=\"submit\" value=\"Submit\"> \
-        </form> \
-        <h2>Entries:</h2> \
-        <ul> \
-        %@ \
-        </ul> \
-    ", time, [digestData stringByBase64Encoding], htmlEntries];
     [reqCtx.varMap setValue:@"guestbook" forKey:@"$fn"];
+    [reqCtx.varMap setValue:time forKey:@"$guestbook::csrf_val"];
+    [reqCtx.varMap setValue:[digestData stringByBase64Encoding] forKey:@"$guestbook::csrf_token"];
+    [reqCtx.varMap setValue:htmlEntries forKey:@"$guestbook::entries"];
+    OFString *body = [HanamiUtils transformTemplate:[HanamiUtils getSupportTemplate:@"guestbook" for:[self name]] varMap:reqCtx.varMap];
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:(OFString *)HTMLContentType title:@"Guestbook" andBody:body];
 }
 
