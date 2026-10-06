@@ -16,6 +16,9 @@
         <input type="text" name="website" tabindex="-1" autocomplete="off">
     </div>
     <input type="submit" value="Submit">
+    <div>
+        <h3>$guestbook::response</h3>
+    </div>
 </form>
 <h2>Entries:</h2>
 <ul>

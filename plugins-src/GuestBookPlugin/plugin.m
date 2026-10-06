@@ -59,7 +59,8 @@ Class HanamiPluginClass(void) {
     if (reqCtx.request.IRI.query != nil) {
         OFDictionary *params = [self getParamsFrom:reqCtx.request.IRI.query];
         previousSuccess = [params objectForKey:@"success"];
-        // todo do something
+        if ([previousSuccess isEqual:@"0"])
+            [reqCtx setObject:@"Thank you for submitting a message!" forKey:@"$guestbook::response"];
     }
 
     OFHMAC *hmacObj = [[OFHMAC alloc] initWithHashClass:[OFSHA256Hash class] allowsSwappableMemory:YES];
@@ -93,10 +94,10 @@ Class HanamiPluginClass(void) {
 
     OFData *digestData = [OFData dataWithItemsNoCopy:(void *)hmacObj.digest count:32 freeWhenDone:NO];
 
-    [reqCtx.varMap setValue:@"guestbook" forKey:@"$fn"];
-    [reqCtx.varMap setValue:time forKey:@"$guestbook::csrf_val"];
-    [reqCtx.varMap setValue:[digestData stringByBase64Encoding] forKey:@"$guestbook::csrf_token"];
-    [reqCtx.varMap setValue:htmlEntries forKey:@"$guestbook::entries"];
+    [reqCtx setObject:@"guestbook" forKey:@"$fn"];
+    [reqCtx setObject:time forKey:@"$guestbook::csrf_val"];
+    [reqCtx setObject:[digestData stringByBase64Encoding] forKey:@"$guestbook::csrf_token"];
+    [reqCtx setObject:htmlEntries forKey:@"$guestbook::entries"];
     OFString *body = [HanamiUtils transformTemplate:[HanamiUtils getSupportTemplate:@"guestbook" for:[self name]] varMap:reqCtx.varMap];
     return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:(OFString *)HTMLContentType title:@"Guestbook" andBody:body];
 }
