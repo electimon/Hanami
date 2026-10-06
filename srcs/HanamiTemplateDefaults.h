@@ -16,7 +16,7 @@ static const OFString *HTMLHead = @"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0
 static const OFString *HTMLStory = @"        <div>\n"
 "            <h3><a name=\"$fn\">$title</a></h3>\n"
 "            <div>$body</div>\n"
-"            <p>posted at: $ti | path: <a href=\"$url$path\">$path</a> | <a href=\"$url/$yr/$mo_num/$da#$fn\">permanent link to this entry</a></p>\n"
+"            <p>posted at: $mo $da, $yr | path: <a href=\"$url$path\">$path</a> | <a href=\"$url$path/$fn.html\">permanent link to this entry</a></p>\n"
 "        </div>\n";
 
 static const OFString *HTMLFoot = @"        <div align=\"center\">\n"
