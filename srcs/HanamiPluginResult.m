@@ -36,12 +36,12 @@
 
 - (OFString *)render:(OFString *)template varMap:(OFDictionary *)varMap {
     OFMutableDictionary *localVarMap = [varMap mutableCopy];
+    OFDate *date = [OFDate date];
 
-    // ideally eventually thisll be configurable, but for dynamic plugin stuff
-    // we set the date to just the current date provided by the date plugin
-    [localVarMap setValue:[[localVarMap valueForKey:@"$date::month"] substringToIndex:3] forKey:@"$mo"];
-    [localVarMap setValue:[localVarMap valueForKey:@"$date::day_numerial"] forKey:@"$da"];
-    [localVarMap setValue:[localVarMap valueForKey:@"$date::year"] forKey:@"$yr"];
+    // ideally eventually thisll be configurable,
+    [localVarMap setValue:[[OFString stringWithUTF8String:month[date.localMonthOfYear - 1]] substringToIndex:3] forKey:@"$mo"];
+    [localVarMap setValue:[OFString stringWithFormat:@"%d", date.localDayOfMonth] forKey:@"$da"];
+    [localVarMap setValue:[OFString stringWithFormat:@"%d", date.localYear] forKey:@"$yr"];
 	[localVarMap setValue:self.title forKey:@"$title"];
 	[localVarMap setValue:self.body forKey:@"$body"];
 	// [localVarMap setValue:[self.path.lastPathComponent stringByDeletingPathExtension] forKey:@"$fn"];
