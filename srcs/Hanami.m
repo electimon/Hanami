@@ -174,8 +174,10 @@ static OFMutableDictionary *staticVarMap;
 				reqCtx.response.headers = plugResult.headers;
 				reqCtx.response.statusCode = plugResult.statusCode;
 				return HANAMI_SUCCESS;
-			} else
+			} else {
 				[HanamiUtils wrapContext:reqCtx withBody:[plugResult render:[HanamiUtils getTemplate:HTML_STORY] varMap:reqCtx.varMap]];
+				return HANAMI_SUCCESS;
+			}
 		}
 	}
 	return HANAMI_CONTINUE;
