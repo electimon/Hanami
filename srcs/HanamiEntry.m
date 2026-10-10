@@ -55,12 +55,14 @@
 }
 
 + (OFArray *)getEntriesAtIRI:(nonnull OFIRI *)iri {
+	if ([excluded containsObject:@"*"]) // user doesn't want anything indexed, thats ok...
+		return @[];
 	OFMutableArray *out = [[OFMutableArray alloc] init];
 	OFArray *contents = [[OFFileManager defaultManager] contentsOfDirectoryAtIRI:iri];
 	for (OFIRI *entryIRI in contents)
-	    if ([[OFFileManager defaultManager] directoryExistsAtIRI:entryIRI])
+		if ([[OFFileManager defaultManager] directoryExistsAtIRI:entryIRI])
 			[out addObjectsFromArray:[self getEntriesAtIRI:entryIRI]];
-        else if ([excluded containsObject:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]])
+		else if ([excluded containsObject:[HanamiUtils relativePathFrom:entriesPath to:entryIRI]])
 			continue;
 		else if (![[entryIRI pathExtension] isEqual:defaultFileExtension]) {
             OFLog(@"Hanami: Skipping file %@, because of expected extension mismatch", [entryIRI fileSystemRepresentation]);
