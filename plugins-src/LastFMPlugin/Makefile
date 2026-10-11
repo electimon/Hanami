@@ -8,7 +8,7 @@ endif
 
 all:
 ifneq ($(IS_WINDOWS),true)
-	objfw-compile -Wno-nullability-completeness --arc --lib 1.0 plugin.m -o $(PLUGIN_NAME)
+	objfw-compile --package ObjFWTLS -Wno-nullability-completeness --arc --lib 1.0 plugin.m -o $(PLUGIN_NAME)
 else
-	objfw-compile -L../../srcs -lhanami -Wno-nullability-completeness --arc --lib 1.0 plugin.m -o $(PLUGIN_NAME)
+	objfw-compile --package ObjFWTLS -L../../srcs -lhanami -Wno-nullability-completeness --arc --lib 1.0 plugin.m -o $(PLUGIN_NAME)
 endif
