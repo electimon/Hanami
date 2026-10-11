@@ -274,8 +274,8 @@ static OFMutableDictionary *staticVarMap;
 	OFModule *mod;
 @try {
 	mod = [OFModule moduleWithPath:plugin];
-} @catch (OFException *) {
-	OFLog(@"Hanami: Failed to load plugin from path %@, trodding along...", plugin);
+} @catch (OFException *ex) {
+	OFLog(@"Hanami: Failed to load plugin from path %@, %@, trodding along...", plugin, ex);
 	return nil;
 }
 	if (mod == nil)
