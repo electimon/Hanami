@@ -1,10 +1,23 @@
 #import "../../srcs/HanamiPlugin.h"
 #import "../../srcs/HanamiConfig.h"
 
+@interface LastFMResponse : OFObject
+@property (nonatomic, strong) OFString *title;
+@property (nonatomic, strong) OFString *artist;
+@property (nonatomic, strong) OFString *url;
+@property (nonatomic, strong) OFDate *date;
+@property (nonatomic, strong) OFString *imageUrl;
+@property (nonatomic) BOOL nowPlaying;
+@end
+
+@implementation LastFMResponse
+@end
+
 @interface LastFMClient : OFObject <OFHTTPClientDelegate>
 - (instancetype)initWithAPIKey:(OFString *)apikey andUsername:(OFString *)username;
 - (OFString *)getLastPlayed;
 - (OFString *)getNowPlaying;
+- (LastFMResponse *)lastResponse;
 @end
 
 @interface LastFMPlugin : OFObject <HanamiPlugin>
@@ -15,13 +28,10 @@ Class HanamiPluginClass(void) {
 }
 
 @implementation LastFMClient {
-    OFString *url;
-    OFString *title;
-    OFString *artist;
-    OFDate *date;
     OFTimer *timer;
     OFHTTPClient *client;
     OFHTTPRequest *request;
+    LastFMResponse *lastResponse;
 }
 
 - (instancetype)initWithAPIKey:(OFString *)apiKey andUsername:(OFString *)username {
@@ -33,6 +43,7 @@ Class HanamiPluginClass(void) {
         [self->client close];
         [self->client asyncPerformRequest:self->request];
     }];
+    self->lastResponse = [[LastFMResponse alloc] init];
     [self->timer fire];
     return self;
 }
@@ -40,15 +51,29 @@ Class HanamiPluginClass(void) {
 - (void)fillCache:(OFHTTPResponse *)resp {
     @synchronized (self) {
         @try {
+            LastFMResponse *response = [[LastFMResponse alloc] init];
             OFXMLElement *elem = [OFXMLElement elementWithStream:resp];
-            elem = [[[[elem elementsForName:@"recenttracks"] firstObject] elementsForName:@"track"] firstObject];
-            url = [[elem elementForName:@"url"] stringValue];
-            title = [[elem elementForName:@"name"] stringValue];
-            artist = [[elem elementForName:@"artist"] stringValue];
-            if ([[elem elementForName:@"date"] attributeForName:@"uts"])
-                date = [[OFDate alloc] initWithTimeIntervalSince1970:[[[[elem elementForName:@"date"] attributeForName:@"uts"] stringValue] longLongValue]];
+            OFXMLElement *firstElem = [[[[elem elementsForName:@"recenttracks"] firstObject] elementsForName:@"track"] firstObject];
+            OFXMLElement *lastElem = [[[[elem elementsForName:@"recenttracks"] firstObject] elementsForName:@"track"] lastObject];
+            response.url = [[firstElem elementForName:@"url"] stringValue];
+            response.title = [[firstElem elementForName:@"name"] stringValue];
+            response.artist = [[firstElem elementForName:@"artist"] stringValue];
+            if ([[firstElem elementForName:@"date"] attributeForName:@"uts"])
+                response.date = [[OFDate alloc] initWithTimeIntervalSince1970:[[[[firstElem elementForName:@"date"] attributeForName:@"uts"] stringValue] longLongValue]];
             else
-                date = nil;
+                response.nowPlaying = YES;
+            OFArray *elems = [lastElem elementsForName:@"image"];
+            if (elems != nil && elems.count > 0) {
+                if (elems.count == 1)
+                    response.imageUrl = [[elems firstObject] stringValue];
+                else if (elems.count == 4)
+                    response.imageUrl = [[elems objectAtIndex:2] stringValue];
+                else
+                    response.imageUrl = [[elems objectAtIndex:1] stringValue];
+            } else {
+                response.imageUrl = @"";
+            }
+            lastResponse = response;
         } @catch (OFException *ex) {
             OFLog(@"LastFMPlugin: Failed to get latest track info: %@, resp: %@", ex, resp);
         }
@@ -56,13 +81,13 @@ Class HanamiPluginClass(void) {
 }
 
 - (OFString *)getLastPlayed {
-    if (date)
-        return [OFString stringWithFormat:@"<a href=\"%@\">%@ by %@</a><br><small>Played on %@</small>", url, title, artist, [date dateStringWithFormat: @"%Y-%m-%d %H:%M:%S"]];
+    if (lastResponse.date != nil)
+        return [OFString stringWithFormat:@"<a href=\"%@\">%@ by %@</a><br><small>Played on %@</small>", lastResponse.url, lastResponse.title, lastResponse.artist, [lastResponse.date dateStringWithFormat: @"%Y-%m-%d %H:%M:%S"]];
     return nil;
 }
 
-- (OFString *)getNowPlaying { // this doesnt have the pattern above because worst case, like astronomical bit flip chance we still return something
-    return [OFString stringWithFormat:@"<a href=\"%@\">%@ by %@</a><br><small>Playing now as we speak!</small>", url, title, artist];
+- (OFString *)getNowPlaying {
+    return [OFString stringWithFormat:@"<a href=\"%@\">%@ by %@</a><br><small>Playing now as we speak!</small>", lastResponse.url, lastResponse.title, lastResponse.artist];
 }
 
 - (void)client:(nonnull OFHTTPClient *)remoteClient didPerformRequest:(nonnull OFHTTPRequest *)request response:(nullable OFHTTPResponse *)response exception:(nullable id)exception {
@@ -71,6 +96,10 @@ Class HanamiPluginClass(void) {
         [remoteClient close];
     } else
         [self fillCache:response];
+}
+
+- (LastFMResponse *)lastResponse {
+    return lastResponse;
 }
 
 @end
@@ -98,6 +127,11 @@ Class HanamiPluginClass(void) {
     @synchronized (client) {
         nowPlaying = [client getNowPlaying];
         lastPlayed = [client getLastPlayed];
+        [varMap setObject:client.lastResponse.title forKey:@"$lastfm::title"];
+        [varMap setObject:client.lastResponse.artist forKey:@"$lastfm::artist"];
+        [varMap setObject:client.lastResponse.url forKey:@"$lastfm::url"];
+        [varMap setObject:client.lastResponse.imageUrl forKey:@"$lastfm::image_url"];
+        [varMap setObject:[OFNumber numberWithBool:client.lastResponse.nowPlaying] forKey:@"$lastfm::now_playing"];
     }
     if (lastPlayed != nil)
         [varMap setObject:lastPlayed forKey:@"$lastfm::status"];
