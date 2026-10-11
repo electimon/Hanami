@@ -18,9 +18,9 @@
     [reqCtx setStatusCode:statusCode];
 @try {
 	if ([[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"wrap_status_pages" defaultValue:@"1"] intValue])
-		[HanamiUtils wrapContext:reqCtx withBody:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
+        [HanamiUtils wrapContext:reqCtx withBody:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
 	else
-    	[reqCtx.response writeString:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
+        [reqCtx.response asyncWriteString:[HanamiUtils transformTemplate:[self getStatusTemplate:statusCode] varMap:reqCtx.varMap]];
 } @catch (OFWriteFailedException *ex) {
     OFLog(@"Hanami: Lost TCP response pipe");
 }

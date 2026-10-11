@@ -202,7 +202,7 @@ static OFMutableDictionary *staticVarMap;
 
 	// this case handles the root page where all posts are shown
 	if ([reqCtx.request.IRI.path isEqual:@"/"]) {
-		[reqCtx.response writeString:[HanamiTemplateHandler renderEntryListAtIRI:entriesPath varMap:reqCtx.varMap]];
+		[reqCtx.response asyncWriteString:[HanamiTemplateHandler renderEntryListAtIRI:entriesPath varMap:reqCtx.varMap]];
 		return;
 	// this case handles subfolders/categories
 	} else if ([[reqCtx.request.IRI.path pathExtension] length] < 1) {
@@ -212,7 +212,7 @@ static OFMutableDictionary *staticVarMap;
 			[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_404 forRequest:reqCtx];
 			return;
 		}
-		[reqCtx.response writeString:[HanamiTemplateHandler renderEntryListAtIRI:iri varMap:reqCtx.varMap]];
+		[reqCtx.response asyncWriteString:[HanamiTemplateHandler renderEntryListAtIRI:iri varMap:reqCtx.varMap]];
 		return;
 	// this case handles direct entry permalinks
 	} else {
