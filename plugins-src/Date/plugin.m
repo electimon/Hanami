@@ -30,6 +30,7 @@ const char * const month[]   = {
     [varMap setValue:[OFString stringWithFormat:@"%s", month[date.localMonthOfYear - 1]] forKey:@"$date::month"];
     [varMap setValue:[OFString stringWithFormat:@"%d", date.localMonthOfYear - 1] forKey:@"$date::month_numerial"];
     [varMap setValue:[OFString stringWithFormat:@"%d", date.localYear] forKey:@"$date::year"];
+    [varMap setValue:[OFString stringWithFormat:@"%d:%d:%d", date.localHour, date.localMinute, date.second] forKey:@"$date::time"];
 }
 
 - (OFString *)name {

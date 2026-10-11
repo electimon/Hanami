@@ -9,3 +9,6 @@ compile_commands.json
 .ecode
 tests
 *.a
+plugins-src/YzuPlugin
+plugins-src/KitsuPlugin
+testing
