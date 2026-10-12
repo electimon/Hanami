@@ -138,7 +138,7 @@ static OFMutableDictionary *staticVarMap;
 		reqCtx.response.headers = @{
 			@"Content-Type": [MYMimeParser mimeTypeFor:[iri pathExtension]]
 		};
-		[reqCtx.response writeData:data];
+		[reqCtx.response asyncWriteData:data];
 		return HANAMI_SUCCESS;
 	}
 	return HTTP_STATUS_404;
@@ -197,7 +197,7 @@ static OFMutableDictionary *staticVarMap;
 	// give plugins a chance to handle /static routes
 	HanamiTryContinue([self tryHandlePluginRoute:reqCtx]);
 	if (reqCtx.isStaticFileRequest) {
-		HanamiTryAndRet([self tryHandleStaticFileRequest:reqCtx]);
+		HanamiTryContinue([self tryHandleStaticFileRequest:reqCtx]);
 	}
 
 	// this case handles the root page where all posts are shown
