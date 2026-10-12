@@ -133,18 +133,20 @@ static const char *transformationRegex = "(%$%w+(:::%w+)*(:(:->)?%{[-%w]+%})?)";
 	else if ([object isKindOfClass:[OFString class]])
 		[reqCtx.response asyncWriteString:object];
 	else if ([object isKindOfClass:[OFStream class]]) {
-		OFStream *stream = object;
-		size_t expected = 1024*64;
-		char *buffer = OFAllocMemory(1, expected);
-@try {
-		while (!stream.atEndOfStream) {
-			size_t read = [stream readIntoBuffer:buffer length:expected];
-			if (read != 0)
-				[reqCtx.response asyncWriteData:[OFData dataWithItems:buffer count:1 itemSize:read]];
-		}
-} @finally {
-		OFFreeMemory(buffer);
-}
+		size_t expected = 32768;
+		OFData *(^nextChunk)(void) = ^OFData * {
+			char buffer[expected];
+			size_t length = [object readIntoBuffer:buffer length:expected];
+			if (length == 0)
+				return nil;
+			return [OFData dataWithItems:buffer count:length];
+		};
+		[reqCtx.response asyncWriteData:nextChunk() handler:^OFData *(OFStream *stream, OFData *data, size_t bytesWritten, id exception) {
+			if (exception != nil)
+				return nil;
+
+			return nextChunk();
+		}];
 	} else OFLog(@"Hanami: Tried to write object of type %@ to response, but we don't know how to handle this type!", [object class]);
 } @catch (OFException *ex) {
 	OFLog(@"Hanami: Tried to write %@ to response but we couldnt'! %@", [object class], ex);
