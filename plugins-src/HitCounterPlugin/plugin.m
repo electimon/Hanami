@@ -1,5 +1,8 @@
 #import "../../srcs/HanamiPlugin.h"
 #import "../../srcs/HanamiConfig.h"
+#import "../../srcs/HanamiUtils.h"
+
+#define MAX_VISITORS 1000000
 
 @interface HitCounterPlugin: OFObject <HanamiPlugin>
 @end
@@ -9,15 +12,29 @@ Class HanamiPluginClass(void) {
 }
 
 @implementation HitCounterPlugin {
-    HanamiConfig *config;
     OFMutableSet *set;
 }
 
 - (instancetype)init {
     self = [super init];
-    self->config = [HanamiConfig instanceFor:@"hitcounter"];
     self->set = [[OFMutableSet alloc] init];
+    OFIRI *ipsFileIRI = [[HanamiUtils getStateDirectory:[self name]] IRIByAppendingPathComponent:@"counter.ips"];
+    if (![[OFFileManager defaultManager] fileExistsAtIRI:ipsFileIRI]) {
+        OFFile *file = [self openIPsFile];
+        [file close];
+    }
+    OFString *ips = [OFString stringWithContentsOfIRI:ipsFileIRI];
+    for (OFString *str in [ips componentsSeparatedByCharactersInSet:[OFCharacterSet newlineCharacterSet]])
+        if (str.length > 0 && set.count < MAX_VISITORS)
+            [set addObject:str];
     return self;
+}
+
+- (OFFile *)openIPsFile {
+    OFIRI *ipsFileIRI = [[HanamiUtils getStateDirectory:[self name]] IRIByAppendingPathComponent:@"counter.ips"];
+    OFFile *ipsFile = [OFFile fileWithPath:[ipsFileIRI fileSystemRepresentation] mode:@"a"];
+    ipsFile.buffersWrites = true;
+    return ipsFile;
 }
 
 - (void)transformMap:(OFMutableDictionary *)varMap {
@@ -26,16 +43,26 @@ Class HanamiPluginClass(void) {
     OFString *numStr;
     @synchronized (set) {
         if ([set containsObject:requestIP]) {
-            numStr = [config valueForKey:@"counter" defaultValue:@"0"];
+            numStr = [OFString stringWithFormat:@"%llu", [set count]];
             [self injectHitCounter:varMap counterVal:numStr];
             return;
         }
+        if (set.count >= MAX_VISITORS) {
+            [self injectHitCounter:varMap counterVal:[OFString stringWithFormat:@"%llu", set.count]];
+            return;
+        }
         [set addObject:requestIP];
-        long long num = [[config valueForKey:@"counter" defaultValue:@"0"] longLongValue];
+        OFFile *ipsFile = [self openIPsFile];
+@try {
+        [ipsFile writeLine:requestIP];
+        [ipsFile flushWriteBuffer];
+} @finally {
+        [ipsFile close];
+}
+        long long num = [set count];
         if ([requestPath isEqual:@"/"])
             num++;
         numStr = [OFString stringWithFormat:@"%lld", num];
-        [config setValue:numStr forKey:@"counter"];
     }
     [self injectHitCounter:varMap counterVal:numStr];
 }

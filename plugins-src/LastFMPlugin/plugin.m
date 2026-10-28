@@ -74,6 +74,7 @@ Class HanamiPluginClass(void) {
                 response.imageUrl = @"";
             }
             lastResponse = response;
+            OFLog(@"LastFMPlugin: Cache = %@", lastResponse);
         } @catch (OFException *ex) {
             OFLog(@"LastFMPlugin: Failed to get latest track info: %@, resp: %@", ex, resp);
         }

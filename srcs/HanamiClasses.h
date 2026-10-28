@@ -12,6 +12,7 @@
 + (instancetype)contextFrom:(nonnull OFHTTPRequest *)request withRequestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response andVarMap:(nonnull OFMutableDictionary *)varMap;
 - (int)validateRequest;
 - (nullable OFData *)requestData;
+- (nullable OFData *)requestDataWithLimit:(size_t)limit;
 - (void)setContentType:(nonnull OFString *)contentType;
 - (void)setStatusCode:(int)statusCode;
 - (void)setHeaders:(OFDictionary *)headers;
@@ -33,6 +34,7 @@
 + (instancetype)contextFrom:(nonnull OFHTTPRequest *)request withRequestBody:(nullable OFStream *)requestBody response:(nonnull OFHTTPResponse *)response andVarMap:(nonnull OFMutableDictionary *)varMap;
 - (int)validateRequest;
 - (nullable OFData *)requestData;
+- (nullable OFData *)requestDataWithLimit:(size_t)limit;
 - (void)setContentType:(OFString *)contentType;
 - (void)setStatusCode:(int)statusCode;
 - (void)setHeaders:(OFDictionary *)headers;

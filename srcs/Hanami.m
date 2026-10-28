@@ -116,6 +116,7 @@ static OFMutableDictionary *staticVarMap;
 		[plugin transformMap:varMap];
 } @catch (OFException *ex) {
 		OFLog(@"Encountered Exception!, plugin: %@, exception: %@", plugin, ex);
+		OFLog(@"Exception: %@, %@, %@", ex, [ex stackTraceAddresses], [ex stackTraceSymbols]);
 		if (tryContinueOnException.intValue == 0)
 			return HTTP_STATUS_500;
 		OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
@@ -156,8 +157,8 @@ static OFMutableDictionary *staticVarMap;
 			plugResult = [plugin handleRequest:reqCtx];
 } @catch (OFException *ex) {
 			OFLog(@"Encountered Exception!, plugin: %@, exception: %@", [plugin name], ex);
+			OFLog(@"Exception: %@, %@, %@", ex, [ex stackTraceAddresses], [ex stackTraceSymbols]);
 			if ([[[HanamiConfig instanceFor:@"hanami"] valueForKey:@"try_continue_on_plugin_exception" defaultValue:@"0"] intValue] == 0) {
-				[reqCtx setObject:[OFString stringWithFormat:@"Exception in plugin %@, details: %@", [plugin name], ex] forKey:@"$int_error"];
 				return HTTP_STATUS_500;
 			}
 			OFLog(@"try_continue_on_plugin_exception == 1, trying to continue!");
@@ -196,6 +197,12 @@ static OFMutableDictionary *staticVarMap;
 
 	// give plugins a chance to handle /static routes
 	HanamiTryContinue([self tryHandlePluginRoute:reqCtx]);
+	if (reqCtx.request.method != OFHTTPRequestMethodGet &&
+		reqCtx.request.method != OFHTTPRequestMethodHead) {
+		reqCtx.response.headers = @{@"Allow": @"GET, HEAD"};
+		[HanamiHTTPStatusHandler handleStatus:HTTP_STATUS_405 forRequest:reqCtx];
+		return;
+	}
 	if (reqCtx.isStaticFileRequest) {
 		HanamiTryContinue([self tryHandleStaticFileRequest:reqCtx]);
 	}

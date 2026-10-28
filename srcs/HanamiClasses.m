@@ -34,12 +34,25 @@
 }
 
 - (nullable OFData *)requestData {
+    return [self requestDataWithLimit:SIZE_MAX - 1];
+}
+
+- (nullable OFData *)requestDataWithLimit:(size_t)limit {
     if (storedRequestData != nil)
         return storedRequestData;
     if (_requestBody == nil)
         return nil;
 @try {
-    storedRequestData = [_requestBody readDataUntilEndOfStream];
+    OFMutableData *data = [OFMutableData data];
+    char buffer[16384];
+    size_t remaining = limit + 1;
+    while (![_requestBody isAtEndOfStream] && remaining > 0) {
+        size_t length = [_requestBody readIntoBuffer:buffer length:(remaining < sizeof(buffer) ? remaining : sizeof(buffer))];
+        [data addItems:buffer count:length];
+        remaining -= length;
+    }
+    [data makeImmutable];
+    storedRequestData = data;
 } @catch (OFException *ex) {
     return nil;
 }
@@ -47,7 +60,7 @@
 }
 
 - (int)validateRequest {
-    OFArray *pathComponents;
+    OFArray *pathComponents = _request.IRI.pathComponents;
     OFString *path;
 @try {
     path = _request.IRI.path;

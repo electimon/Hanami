@@ -146,7 +146,7 @@ Class HanamiPluginClass(void) {
             stringByDeletingEnclosingWhitespaces] lowercaseString]
             isEqual:@"application/x-www-form-urlencoded"])
         return [[HanamiPluginResult alloc] initWithStatusCode:415 headers:@{}];
-    OFData *data = reqCtx.requestData;
+    OFData *data = [reqCtx requestDataWithLimit:MAX_BODY_BYTES];
     if (data == nil)
         done(6);
     if (data.count > MAX_BODY_BYTES / data.itemSize)
@@ -206,6 +206,7 @@ Class HanamiPluginClass(void) {
         SL3PreparedStatement *dbSubmitStatement = [self->dbConn prepareStatement:@"INSERT INTO entries (name, message) VALUES ($name, $message)"];
         [dbSubmitStatement bindWithArray:items];
         [dbSubmitStatement step];
+        [self->dbConn executeStatement:@"DELETE FROM entries WHERE id < (SELECT id FROM entries ORDER BY id DESC LIMIT 1 OFFSET 9999)"];
     } else
         done(4);
     done(0);

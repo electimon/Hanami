@@ -30,11 +30,9 @@ Class HanamiPluginClass(void) {
     if ([iri.percentEncodedPath hasPrefix:@"/pub/"] == NO)
         return nil;
 
-    OFIRI *basePath = [HanamiConfig getConfigBasePath];
-    OFIRI *standardPath = [basePath IRIByAppendingPathComponent:iri.path].IRIByStandardizingPath;
-    if (![[standardPath fileSystemRepresentation] hasPrefix:[OFString stringWithFormat:@"%@%@", basePath.fileSystemRepresentation, PATH_SEP]])
-        return nil;
-    return standardPath;
+    OFIRI *basePath = [[HanamiConfig getConfigBasePath] IRIByAppendingPathComponent:@"pub"];
+    OFString *relativePath = [iri.path substringFromIndex:5];
+    return relativePath.length == 0 ? basePath : [HanamiUtils resolve:relativePath under:basePath];
 }
 
 - (OFString *)getSizeString:(unsigned long long)size {
@@ -85,6 +83,10 @@ Class HanamiPluginClass(void) {
     OFIRI *path;
     if ((path = [self handleablePath:reqCtx.request.IRI]) == nil)
         return nil;
+
+    if (reqCtx.request.method != OFHTTPRequestMethodGet &&
+        reqCtx.request.method != OFHTTPRequestMethodHead)
+        return [[HanamiPluginResult alloc] initWithStatusCode:405 headers:@{@"Allow": @"GET, HEAD"}];
 
     if ([[OFFileManager defaultManager] fileExistsAtIRI:path] == NO)
         return nil;
