@@ -7,6 +7,8 @@
 #import <ObjSQLite3/ObjSQLite3.h>
 
 #define DEFAULT_CSRF_SECRET @"WiththefallofGeneonUSAsDVDsalesdepartment"
+#define MAX_BODY_BYTES 32768
+#define TOKEN_LIFETIME 3600
 
 @interface GuestBookPlugin: OFObject <HanamiPlugin>
 @end
@@ -17,8 +19,8 @@ Class HanamiPluginClass(void) {
 
 @implementation GuestBookPlugin {
     SL3Connection *dbConn;
-    SL3PreparedStatement *dbFetchStatement;
     OFString *csrfSecret;
+    OFString *publicOrigin;
 }
 
 - (void)createTables {
@@ -40,12 +42,16 @@ Class HanamiPluginClass(void) {
         return nil;
     }
     [self createTables];
-    self->dbFetchStatement = [self->dbConn prepareStatement:@"SELECT name, message FROM entries ORDER BY id DESC;"];
 
     HanamiConfig *config = [HanamiConfig instanceFor:@"guestbook"];
-    self->csrfSecret = [config valueForKey:@"csrfSecret" defaultValue:DEFAULT_CSRF_SECRET];
-    if ([self->csrfSecret isEqual:DEFAULT_CSRF_SECRET])
-        OFLog(@"GuestBookPlugin: Hey! You should define a csrf secret in configs/guestbook.ini...\nLike this!\n[guestbook]\ncsrfSecret = \"MySecret!\"");
+    self->csrfSecret = [config valueForKey:@"csrfSecret" defaultValue:@""];
+    self->publicOrigin = [config valueForKey:@"publicOrigin" defaultValue:@""];
+    // Fail closed: a public fallback key makes signatures forgeable.
+    if ([self->csrfSecret isEqual:DEFAULT_CSRF_SECRET] || self->csrfSecret.length < 32 ||
+        self->publicOrigin.length == 0) {
+        OFLog(@"GuestBookPlugin: disabled; configure a random csrfSecret (at least 32 characters) and publicOrigin in configs/guestbook.ini");
+        return nil;
+    }
     return self;
 }
 
@@ -55,6 +61,7 @@ Class HanamiPluginClass(void) {
 - (HanamiPluginResult *)handleDisplayRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
     OFMutableArray *entries = [[OFMutableArray alloc] init];
     OFString *previousSuccess = nil;
+    [reqCtx setObject:@"" forKey:@"$guestbook::response"];
 
     if (reqCtx.request.IRI.query != nil) {
         OFDictionary *params = [self getParamsFrom:reqCtx.request.IRI.query];
@@ -66,6 +73,7 @@ Class HanamiPluginClass(void) {
     OFHMAC *hmacObj = [[OFHMAC alloc] initWithHashClass:[OFSHA256Hash class] allowsSwappableMemory:YES];
     [hmacObj setKey:[self->csrfSecret cStringWithEncoding:OFStringEncodingUTF8] length:[self->csrfSecret cStringLengthWithEncoding:OFStringEncodingUTF8]];
 
+    SL3PreparedStatement *dbFetchStatement = [self->dbConn prepareStatement:@"SELECT name, message FROM entries ORDER BY id DESC LIMIT 100;"];
     while ([dbFetchStatement step]) {
         @try {
             OFArray *rowArr = [dbFetchStatement currentRowArray];
@@ -99,36 +107,65 @@ Class HanamiPluginClass(void) {
     [reqCtx setObject:[digestData stringByBase64Encoding] forKey:@"$guestbook::csrf_token"];
     [reqCtx setObject:htmlEntries forKey:@"$guestbook::entries"];
     OFString *body = [HanamiUtils transformTemplate:[HanamiUtils getSupportTemplate:@"guestbook" for:[self name]] varMap:reqCtx.varMap];
-    return [[HanamiPluginResult alloc] initWithStatusCode:200 contentType:(OFString *)HTMLContentType title:@"Guestbook" andBody:body];
+    return [[HanamiPluginResult alloc] initWithStatusCode:200 title:@"Guestbook" headers:@{@"Content-Type": (OFString *)HTMLContentType, @"Cache-Control": @"no-store"} andBody:body];
 }
 
 - (OFDictionary *)getParamsFrom:(OFString *)requestString {
-    OFArray *paramsArr = [requestString componentsSeparatedByString:@"&"];
-    OFMutableDictionary *paramsDict = [[OFMutableDictionary alloc] init];
-    for (OFString *param in paramsArr) {
-        if (![param containsString:@"="])
-            continue;
-        OFArray *splitParam = [param componentsSeparatedByString:@"="];
-        if ([splitParam count] != 2)
-            continue; // not support any param string that has an = in the name or value, = is reserved for the separator sorry
-            // although i suppose if either obj is empty itll still be a valid string? caller should check for nil
-        [paramsDict setObject:[[[splitParam objectAtIndex:1] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding] forKey:[splitParam firstObject]];
+    OFMutableDictionary *params = [OFMutableDictionary dictionary];
+    @try {
+        for (OFString *part in [requestString componentsSeparatedByString:@"&"]) {
+            OFRange separator = [part rangeOfString:@"="];
+            if (separator.location == OFNotFound)
+                return nil;
+            OFString *key = [[[part substringToIndex:separator.location]
+                stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+            OFString *value = [[[part substringFromIndex:separator.location + 1]
+                stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+            if (key.length == 0 || [params objectForKey:key] != nil)
+                return nil;
+            [params setObject:value forKey:key];
+        }
+    } @catch (OFInvalidFormatException *ex) {
+        return nil;
+    } @catch (OFInvalidEncodingException *ex) {
+        return nil;
     }
-    return paramsDict;
+    return params;
 }
 
 #define done(num) \
     return [[HanamiPluginResult alloc] initWithStatusCode:303 headers:@{@"Location": [OFString stringWithFormat:@"/guestbook.html?success=%d", num]}];
 
 - (HanamiPluginResult *)handleSubmitRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
-    if (reqCtx.requestData == nil)
+    // Origin is mandatory: timestamp signatures alone are public bearer tokens,
+    // and are not bound to a browser session. Never derive this from Host.
+    if (![[reqCtx.request.headers objectForKey:@"Origin"] isEqual:self->publicOrigin])
+        return [[HanamiPluginResult alloc] initWithStatusCode:403 headers:@{}];
+    OFString *contentType = [reqCtx.request.headers objectForKey:@"Content-Type"];
+    if (![[[[[contentType componentsSeparatedByString:@";"] firstObject]
+            stringByDeletingEnclosingWhitespaces] lowercaseString]
+            isEqual:@"application/x-www-form-urlencoded"])
+        return [[HanamiPluginResult alloc] initWithStatusCode:415 headers:@{}];
+    OFData *data = reqCtx.requestData;
+    if (data == nil)
         done(6);
-    OFString *postedString = [OFString stringWithData:reqCtx.requestData encoding:OFStringEncodingUTF8];
-
-    OFDictionary *extractedParams = [self getParamsFrom:postedString];
+    if (data.count > MAX_BODY_BYTES / data.itemSize)
+        return [[HanamiPluginResult alloc] initWithStatusCode:413 headers:@{}];
+    OFDictionary *extractedParams;
+    @try {
+        extractedParams = [self getParamsFrom:[OFString stringWithData:data encoding:OFStringEncodingUTF8]];
+    } @catch (OFInvalidEncodingException *ex) {
+        done(2);
+    }
     if (extractedParams == nil)
         done(2);
     if ([extractedParams objectForKey:@"csrf_val"] == nil || [extractedParams objectForKey:@"csrf_token"] == nil || [extractedParams objectForKey:@"message"] == nil || [extractedParams objectForKey:@"name"] == nil)
+        done(3);
+
+    OFString *name = [extractedParams objectForKey:@"name"];
+    OFString *message = [extractedParams objectForKey:@"message"];
+    if ([name stringByDeletingEnclosingWhitespaces].length == 0 || name.length > 100 ||
+        [message stringByDeletingEnclosingWhitespaces].length == 0 || message.length > 2000)
         done(3);
 
     OFString *websitePot = [extractedParams objectForKey:@"website"];
@@ -140,16 +177,31 @@ Class HanamiPluginClass(void) {
     [hmacObj setKey:[self->csrfSecret cStringWithEncoding:OFStringEncodingUTF8] length:[self->csrfSecret cStringLengthWithEncoding:OFStringEncodingUTF8]];
 
     OFString *csrfVal = [extractedParams objectForKey:@"csrf_val"];
+    @try {
+        long long timestamp = csrfVal.longLongValue;
+        long long now = (long long)[[OFDate date] timeIntervalSince1970];
+        if (![[OFString stringWithFormat:@"%lld", timestamp] isEqual:csrfVal] ||
+            timestamp < 0 || timestamp > now || now - timestamp > TOKEN_LIFETIME)
+            done(4);
+    } @catch (OFInvalidFormatException *ex) {
+        done(4);
+    } @catch (OFOutOfRangeException *ex) {
+        done(4);
+    }
     [hmacObj updateWithBuffer:[csrfVal cStringWithEncoding:OFStringEncodingUTF8] length:[csrfVal cStringLengthWithEncoding:OFStringEncodingUTF8]];
     [hmacObj calculate];
 
     OFData *digestData = [OFData dataWithItemsNoCopy:(void *)hmacObj.digest count:32 freeWhenDone:NO];
-    // there has to be a better way or like a builtin function with objfw to do this 
-    OFString *csrfToken = \
-        [[[[extractedParams objectForKey:@"csrf_token"] stringByReplacingOccurrencesOfString:@"%3D" withString:@"="]
-            stringByReplacingOccurrencesOfString:@"%2B" withString:@"+"] stringByReplacingOccurrencesOfString:@"%2F" withString:@"/"]; // its seriously evil
-
-    if ([csrfToken isEqual:[digestData stringByBase64Encoding]]) {
+    OFString *csrfToken = [extractedParams objectForKey:@"csrf_token"];
+    const unsigned char *actual = (const unsigned char *)[csrfToken UTF8String];
+    OFString *expected = [digestData stringByBase64Encoding];
+    const unsigned char *wanted = (const unsigned char *)[expected UTF8String];
+    unsigned char difference = 0;
+    if (csrfToken.UTF8StringLength != expected.UTF8StringLength)
+        done(4);
+    for (size_t i = 0; i < expected.UTF8StringLength; i++)
+        difference |= actual[i] ^ wanted[i];
+    if (difference == 0) {
         OFArray *items = [[OFArray alloc] initWithObjects:[extractedParams objectForKey:@"name"], [extractedParams objectForKey:@"message"], nil];
         SL3PreparedStatement *dbSubmitStatement = [self->dbConn prepareStatement:@"INSERT INTO entries (name, message) VALUES ($name, $message)"];
         [dbSubmitStatement bindWithArray:items];
@@ -160,10 +212,16 @@ Class HanamiPluginClass(void) {
 }
 
 - (HanamiPluginResult *)handleRequest:(id<HanamiPluginRequestContextProtocol>)reqCtx {
-    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.html"])
+    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.html"]) {
+        if (reqCtx.request.method != OFHTTPRequestMethodGet)
+            return [[HanamiPluginResult alloc] initWithStatusCode:405 headers:@{@"Allow": @"GET"}];
         return [self handleDisplayRequest:reqCtx];
-    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.submit"])
+    }
+    if ([reqCtx.request.IRI.path isEqual:@"/guestbook.submit"]) {
+        if (reqCtx.request.method != OFHTTPRequestMethodPost)
+            return [[HanamiPluginResult alloc] initWithStatusCode:405 headers:@{@"Allow": @"POST"}];
         return [self handleSubmitRequest:reqCtx];
+    }
     return nil;
 }
 

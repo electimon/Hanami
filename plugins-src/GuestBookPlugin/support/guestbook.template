@@ -5,12 +5,12 @@
     <div>
         <label for="name">Name:</label>
         <br>
-        <input type="text" name="name" id="name" required>
+        <input type="text" name="name" id="name" maxlength="100" required>
     </div>
     <div>
         <label for="message">Message:</label>
         <br>
-        <input type="text" name="message" id="message" required>
+        <input type="text" name="message" id="message" maxlength="2000" required>
     </div>
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;">
         <input type="text" name="website" tabindex="-1" autocomplete="off">
